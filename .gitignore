@@ -1,0 +1,11 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Generated output (rebuild with: python -m src.ingest.run)
+artifacts/
+
+# Secrets
+.env
