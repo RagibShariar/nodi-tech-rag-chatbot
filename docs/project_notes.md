@@ -20,7 +20,7 @@
 - [3. Glossary · শব্দকোষ](#3-glossary--শব্দকোষ)
 - [M1 · Ingestion](#m1--ingestion) ✅
 - [M2 · Vector search](#m2--vector-search) ✅
-- [M3 · Hybrid search + rerank](#m3--hybrid-search--rerank) ⏳
+- [M3 · Hybrid search + rerank](#m3--hybrid-search--rerank) ✅
 - [M4 · Chat](#m4--chat) ⏳
 - [M5 · Guardrails](#m5--guardrails) ⏳
 - [M6 · Evaluation](#m6--evaluation) ⏳
@@ -66,11 +66,11 @@ prompt injection), and success is measured by a 40-question evaluation, not by i
 INDEXING (একবার, আগে থেকে)                                      status
 data/ -> parse (md + PDF) -> chunk -> add context line           ✅ M1
       -> embed -> vector DB (Qdrant)                             ✅ M2
-      -> BM25 index                                              ⏳ M3
+      -> BM25 index                                              ✅ M3
 
 CHAT (প্রতিটা প্রশ্নে)
 user message -> rewrite follow-up into standalone question       ⏳ M4
-  -> lexical search + vector search -> fuse (RRF) -> rerank      ⏳ M3
+  -> lexical search + vector search -> fuse (RRF) -> rerank      ✅ M3
   -> prompt: system rules + chat history + fenced chunks         ⏳ M4/M5
   -> LLM answer with [source] citations -> stream to UI          ⏳ M4
 ```
@@ -201,6 +201,52 @@ improvement, so you need a finer metric (MRR) to compare.
 run without the real model.
 **বাংলায়:** গাড়ি চালানো শেখার সময় আসল রাস্তায় না নেমে সিমুলেটরে শেখা। স্টিয়ারিং
 (আমাদের কোড) আসল, রাস্তা (মডেল) নকল, তাই দ্রুত আর নিরাপদে পরীক্ষা করা যায়।
+
+### Lexical vs semantic search *(M3)*
+**English:** Lexical (keyword) search matches the exact words; semantic (vector) search matches meaning.
+Lexical is great for exact codes (`ND-1042`) and fails across synonyms or languages; semantic is the opposite.
+**বাংলায়:** মোবাইলের কন্টাক্টে নাম টাইপ করে খোঁজা হলো lexical: বানান হুবহু মিলতে হবে। কাউকে
+"ওই যে লম্বা, চশমা পরা ভাইয়া" বলে বর্ণনা দিয়ে খোঁজা হলো semantic: নাম না জানলেও চলে, কিন্তু
+দুইজন একই রকম দেখতে হলে গুলিয়ে যায়।
+
+### BM25 (+ IDF, length normalization) *(M3)*
+**English:** The standard keyword-scoring formula. A chunk scores higher when it contains the query's words,
+especially **rare** ones (IDF: inverse document frequency), with diminishing returns for repeats and a
+penalty for long chunks (length normalization).
+**বাংলায়:** ক্লাসে "রহিম" নামে ৫ জন, "তাহসিন" নামে একজন। "তাহসিন" বলে ডাকলে ঠিক মানুষটাকেই
+পাওয়া যায়, কারণ নামটা বিরল (এটাই IDF)। আর মোটা বইয়ে যেকোনো শব্দ থাকার সম্ভাবনা বেশি, কিন্তু
+পাতলা লিফলেটে শব্দটা থাকলে সেটা বেশি অর্থবহ (length normalization)।
+
+### Stemming *(M3, not used yet)*
+**English:** Reducing words to a root form so "meaning" and "mean" match. We don't stem yet; it cost
+ND-1042 the #1 spot in BM25 alone.
+**বাংলায়:** "খেলা", "খেলছে", "খেলেছিল" সব একই শিকড় "খেল" থেকে আসা। Stemmer শব্দকে শিকড়ে নামিয়ে
+আনে, যাতে আলাদা রূপগুলো মিলে যায়।
+
+### RRF (Reciprocal Rank Fusion) *(M3)*
+**English:** Merges ranked lists by rank, not score: `Σ 1/(60 + rank)`. Needed because BM25 scores (0–20)
+and cosine scores (0–1) are on different scales. Items found by both methods rise to the top.
+**বাংলায়:** গানের রিয়েলিটি শোতে বিচারকের নম্বর ১০০-তে, আর দর্শকের SMS ভোট হাজারে। দুটো সরাসরি
+যোগ করলে ভোটই সব ঠিক করে দেবে। তাই নম্বর না দেখে দেখি কে কাকে কততম রেখেছে, তারপর মেলাই। যাকে
+দুই পক্ষই উপরের দিকে রেখেছে, সে-ই জেতে।
+
+### Bi-encoder vs cross-encoder (reranker) *(M3)*
+**English:** A bi-encoder (embedding model) encodes question and chunk separately, so it's fast and can
+search everything. A cross-encoder reads them together and outputs one relevance score: more accurate,
+much slower. So we **retrieve** many candidates fast, then **rerank** only the top few.
+**বাংলায়:** **BCS পরীক্ষা।** প্রিলিতে লাখো পরীক্ষার্থী, MCQ দিয়ে দ্রুত বাছাই (bi-encoder: সবার
+খাতা আলাদা আলাদা দেখা)। শেষে ভাইভায় অল্প কয়েকজন, প্রশ্নকর্তা আর প্রার্থী মুখোমুখি (cross-encoder):
+অনেক নির্ভুল, কিন্তু লাখো মানুষের ভাইভা নেওয়া অসম্ভব।
+
+### Confounded experiment *(M3)*
+**English:** An experiment where two things change at once, so you can't tell which one caused the result.
+**বাংলায়:** তরকারিতে একসাথে লবণ আর মরিচ দুটোই বাড়ালে স্বাদ বদলালো কেন, বোঝার উপায় নেই।
+একবারে একটাই বদলাতে হয়।
+
+### Latency budget *(M3)*
+**English:** Measuring where the seconds go, stage by stage, before optimizing.
+**বাংলায়:** অফিস যেতে দেরি হলে আগে দেখি কোন মোড়ে আটকে থাকি। পুরো রাস্তা না, শুধু ওই একটা
+সিগনাল (আমাদের ক্ষেত্রে reranker) ঠিক করলেই বেশিরভাগ সময় বাঁচে।
 
 ---
 
@@ -650,7 +696,222 @@ We store prefixes per model in one dict.
 
 ## M3 · Hybrid search + rerank
 
-⏳ Not started.
+**Goal:** add keyword search (BM25) next to vector search, merge them with RRF, rerank with a
+cross-encoder, and measure each stage.
+**লক্ষ্য:** অর্থ দিয়ে খোঁজার পাশাপাশি হুবহু শব্দ দিয়েও খোঁজা, দুই তালিকা মেলানো, তারপর একজন
+"ভাইভা বোর্ড" দিয়ে চূড়ান্ত বাছাই। আর প্রতিটা ধাপ আলাদা করে মাপা।
+**Status:** ✅ done · rerank MRR **0.986** · all@5 **36/36** · 73 tests passing · Spec: [specs/M3.md](specs/M3.md)
+
+### What we built
+
+| File | Job |
+|---|---|
+| `src/retrieval/bm25.py` | Tokenizer (codes kept whole + split, Bangla-aware) + in-memory BM25 index. |
+| `src/retrieval/fusion.py` | `rrf()`: merge ranked lists by `Σ 1/(60 + rank)`. |
+| `src/retrieval/rerank.py` | `CrossEncoderReranker` (bge-reranker-v2-m3, CPU). PyTorch imported lazily. |
+| `src/retrieval/pipeline.py` | `Retriever.retrieve(question, mode, k)`: 4 modes, debug trail per result. |
+| `src/retrieval/search.py` | CLI `--mode`; prints `[vec #1 \| bm25 #2 \| rrf 0.0325 \| rerank 0.784]` per hit. |
+| `scripts/retrieval_check.py` | `--modes`, plus seconds per question. |
+| `tests/retrieval/` | BM25, RRF (hand-computed), pipeline (fakes + monkeypatch), reranker (integration). |
+
+### How it works
+
+```
+                 ┌─ vector search (bge-m3 + Qdrant) → top 20 ─┐
+question ────────┤                                            ├─ RRF → top 5 candidates ─ reranker → top 5
+                 └─ BM25 keyword search             → top 20 ─┘   (SEARCH_DEPTH=20)  (CANDIDATES=5)
+```
+
+Four modes (`vector`, `bm25`, `hybrid`, `rerank`) run the same code with stages switched on or off, so
+each stage can be measured on its own. Default: `rerank`.
+
+**সহজ বাংলায়, BCS পরীক্ষার উদাহরণ:**
+1. **দুই ধরনের প্রিলি:** একটায় অর্থ দেখে বাছাই (vector), আরেকটায় হুবহু শব্দ দেখে (BM25)। প্রতিটা
+   থেকে ২০ জন।
+2. **মেধাতালিকা মেলানো (RRF):** দুই তালিকার নম্বর সরাসরি যোগ না করে কে কততম হয়েছে সেটা মেলানো।
+   দুই প্রিলিতেই ভালো করা প্রার্থী উপরে ওঠে।
+3. **ভাইভা (reranker):** মেলানো তালিকার সেরা ৫ জনকে মুখোমুখি প্রশ্ন। ভাইভার রায় দিয়ে চূড়ান্ত ক্রম।
+
+### Decisions and why
+
+| Decision | Why | Alternative rejected |
+|---|---|---|
+| `rank_bm25`, in memory | 50 chunks index in milliseconds; no server. | Postgres FTS (no Postgres; `ts_rank` isn't BM25). |
+| Tokenizer keeps `nd-1042` **and** `nd`, `1042` | "ND-1042", "nd 1042" and "error 1042" all match. | Plain whitespace split (keeps "ND-1042," with punctuation). |
+| Bangla Unicode block in the token pattern | Python's `\w` doesn't match Bangla vowel signs, so `\w+` cuts Bangla words apart. | `\w+`. |
+| No stemming / stopwords (yet) | BM25's IDF already downweights common words; measure before adding complexity. | Snowball stemmer (possible future experiment). |
+| RRF with k = 60 | Combines ranks, so different score scales don't matter. Standard constant. | Adding normalized scores (fragile). |
+| bge-reranker-v2-m3 via sentence-transformers | Multilingual (Bangla), named in the brief. Ollama has no rerank endpoint (probed: 404). | Qwen LLM as reranker (too slow on CPU); smaller rerankers (no Bangla or non-commercial license). |
+| Lazy PyTorch import | vector/bm25/hybrid modes and unit tests never pay the PyTorch load cost. | Import at top. |
+| **Default: rerank, 5 candidates** | Best scores (E2). 5, 10, 20 candidates scored identically; 5 is fastest (11.4s vs 32.2s). | 20 candidates (same score, 3× slower). |
+| `SEARCH_DEPTH` separate from `CANDIDATES` | Changing how many get reranked must not change what the searches find. | One setting for both (caused a confounded measurement). |
+
+**বাংলায় মূল "কেন"গুলো:**
+- **৫ জনের ভাইভা, ২০ জনের না:** ৫ জন, ১০ জন আর ২০ জনের ভাইভায় একই ফল এসেছে। তাহলে ২০ জনের
+  ভাইভা নিয়ে তিনগুণ সময় নষ্ট করার মানে নেই।
+- **দুই রকম প্রিলি কেন:** অর্থ দিয়ে খুঁজলে বাংলা-ইংরেজি মেলে, শব্দ দিয়ে খুঁজলে কোড (ND-1042) মেলে।
+  একজন যা মিস করে, আরেকজন ধরে।
+
+### What the numbers taught us (E2)
+
+| Mode | hit@5 | all@5 | MRR | s/question |
+|---|---|---|---|---|
+| vector | 100% | 34/36 | 0.935 | 2.5 |
+| bm25 | 97.2% | 33/36 | 0.848 | ~0 |
+| hybrid | 100% | **36/36** | 0.887 | 2.5 |
+| **rerank (5)** | **100%** | **36/36** | **0.986** | 11.4 |
+
+1. **BM25 can't cross languages.** It missed Q34 (English question, Bangla doc: zero shared words). In
+   hybrid, RRF kept vector's result, so Q34 came back.
+   **বাংলায়:** বানান মিলিয়ে খুঁজলে ইংরেজি "bus" দিয়ে বাংলা "বাস" কখনো পাওয়া যাবে না।
+2. **Hybrid is a trade-off, not a free win.** It fixed every multi-document gap (all@5 34 → 36) but
+   *lowered* MRR (0.935 → 0.887). When vector and BM25 disagree about #1, averaging drags vector's
+   correct #1 down. ND-1042 case: error codes (vector #1, BM25 #2) and rate limits (vector #2, BM25 #1)
+   got the **exact same** RRF score, and the alphabetical tie-break picked the wrong one.
+   **বাংলায়:** দুই বিচারক দুইজনকে প্রথম করলে গড়ে দুজনই সমান। তখন টাই ভাঙতে আরেকজন লাগে।
+3. **The reranker is that tie-breaker.** It reads the full text and restores the order: MRR 0.986
+   (35 of 36 questions have a correct document at #1). ND-1042: error codes 0.784 vs rate limits 0.649.
+   **বাংলায়:** ভাইভা বোর্ড দুইজনকেই সামনে বসিয়ে প্রশ্ন করে ঠিক করে দিল কে আসলে যোগ্য।
+4. **More candidates didn't help here.** 5, 10 and 20 gave identical scores; only time changed.
+5. **The reranker is the slow part.** Embed 2.5s, Qdrant and BM25 ~0s, rerank 5 passages 7–10s. It's
+   compute (568M parameters × ~1,250 tokens on a 4-core CPU), not a bug.
+6. **Reranker scores near 0 mean "irrelevant"** (e.g. 0.000 for unrelated chunks). Possible signal for
+   "I don't know" in M5.
+
+### Problems we hit and how we solved them
+
+1. **PyTorch wouldn't load:** `OSError: c10.dll` because the Microsoft VC++ runtime was missing. It needs
+   admin rights, so I ran `winget install Microsoft.VCRedist.2015+.x64` myself.
+   **বাংলায়:** গাড়ি আছে, কিন্তু চালাতে লাইসেন্স লাগে। লাইসেন্স (admin) শুধু মালিকই দিতে পারে।
+2. **BM25 put ND-1042's error-codes file #2, not #1.** Measured: length normalization (124 vs 31 tokens)
+   and no stemming ("mean" ≠ "Meaning"). I chose **not** to tune BM25 for one question (overfitting); the
+   spec criterion was changed to the brief's wording: full pipeline #1 (met), BM25 top 2 (met).
+3. **Confounded measurement.** Lowering `CANDIDATES` also lowered search depth (`max(CANDIDATES, k)`), so
+   the first 10/5-candidate runs changed two things at once (rerank@5 showed 34/36 and 0.972). Fixed by
+   separating `SEARCH_DEPTH`, re-measured: 36/36 and 0.986.
+   **বাংলায়:** লবণ আর মরিচ একসাথে বাড়িয়ে ফেলেছিলাম। আলাদা করে আবার রান্না করলাম।
+4. **My first regression test couldn't catch the bug.** A mutation check (put the bug back) showed it
+   still passed. Rewrote it with a controlled setup: chunk X is #6 in both lists, so only a 20-deep search
+   finds it, and RRF ranks it #1. Now the test fails on the old code and passes on the fix.
+   **বাংলায়:** দারোয়ান ঘুমাচ্ছিল, চোর সেজে পরীক্ষা করায় ধরা পড়ল। নতুন দারোয়ান চোর ধরতে পারে।
+5. **No progress output from background runs:** Python buffers output when piped. Fix: `python -u`.
+
+### How we know it works
+
+- **73 tests:** tokenizer (codes, filenames, Bangla), BM25 on real chunks (ND-1042 top 2, SEC-EXC #1,
+  Q17 exact wording), RRF hand-computed scores and tie-breaks, pipeline modes with fakes, rerank order
+  from the reranker, reranker sees only candidates, search depth regression test (mutation-verified),
+  real reranker (English and cross-language), plus all of M1/M2.
+- **E2** on 36 questions × 4 modes, with the measurement bug fixed and re-run.
+- **Debug trail** in the search CLI shows *why* each chunk is where it is.
+
+### Numbers
+
+| Metric | Value |
+|---|---|
+| Default pipeline | vector top 20 + BM25 top 20 → RRF → rerank top 5 → top 5 |
+| rerank (default) | hit@5 100% · all@5 36/36 · MRR 0.986 · 11.4s/question |
+| vs M2 vector | MRR 0.935 → 0.986 · all@5 34 → 36 |
+| Latency breakdown | embed 2.5s · Qdrant ~0 · BM25 ~0 · rerank(5) 7–10s · reranker load 21s once |
+| Reranker | bge-reranker-v2-m3, 568M params, ~2.3 GB, CPU |
+| Tests | 73 passed |
+
+### Known limitations · দুর্বলতা
+
+- **~11 seconds of retrieval per question on CPU**, before the LLM writes anything (M4).
+  Fallback: `RETRIEVAL_MODE=vector` (2.5s, MRR 0.935).
+  *(ভাইভা বোর্ড নির্ভুল, কিন্তু সময় নেয়। তাড়া থাকলে শুধু প্রিলির ফল দিয়েও কাজ চালানো যায়।)*
+- No stemming in BM25.
+- Reranker load takes 21s and contacts the Hugging Face Hub on each start.
+- Same caveats as M2: document-level metric, 36 questions, small corpus.
+
+### Questions I should be able to answer
+
+<details>
+<summary><b>Why hybrid search? Wasn't vector search already at 100%?</b></summary>
+
+**Answer:** Lexical and semantic search fail in different ways. Vector search handles meaning and
+cross-language but has small margins on exact codes; BM25 nails exact codes but can't match across
+languages (it missed the English question about the Bangla doc). Hybrid got all expected documents for
+every question (all@5 34 → 36). And hit@5 was a ceiling: the real gains show in all@5 and MRR.
+
+**বুঝে নাও:** নাম দিয়ে খোঁজা আর বর্ণনা দিয়ে খোঁজা: একটা যেখানে ব্যর্থ, আরেকটা সেখানে কাজ করে।
+</details>
+
+<details>
+<summary><b>What is BM25, and what is IDF?</b></summary>
+
+**Answer:** BM25 scores a chunk by how many query words it contains, weighting rare words more (IDF,
+inverse document frequency), with diminishing returns for repeated words and a penalty for long chunks.
+"ND-1042" appears in two chunks, so it's worth a lot; "what" appears everywhere, so it's worth little.
+
+**বুঝে নাও:** ক্লাসে "তাহসিন" ডাকলে একজনকেই পাওয়া যায়, "রহিম" ডাকলে পাঁচজন সাড়া দেয়। বিরল শব্দের দাম বেশি।
+</details>
+
+<details>
+<summary><b>Why RRF instead of just adding the scores?</b></summary>
+
+**Answer:** BM25 scores range roughly 0–20 and cosine 0–1, so adding them lets BM25 dominate, and
+normalizing is fragile. RRF uses only ranks: each list contributes 1/(60 + rank). A document found by
+both methods rises; a document found by only one still counts, so cross-language results survive.
+
+**বুঝে নাও:** বিচারকের নম্বর ১০০-তে, দর্শকের ভোট হাজারে। তাই নম্বর না, কে কততম, সেটা মেলাই।
+</details>
+
+<details>
+<summary><b>Hybrid lowered MRR from 0.935 to 0.887. Isn't that bad?</b></summary>
+
+**Answer:** On its own, yes, and I reported it. RRF averages: when vector and BM25 disagree about #1,
+vector's correct #1 can drop. For ND-1042 the two top chunks got an identical RRF score and an
+alphabetical tie-break picked the wrong one. That's why hybrid isn't the final stage. The reranker reads
+the full text and fixes the order: MRR 0.986, with hybrid's full coverage kept.
+
+**বুঝে নাও:** দুই বিচারক দুইজনকে প্রথম করলে গড়ে দুজনই সমান হয়। ভাইভা বোর্ড টাই ভাঙে।
+</details>
+
+<details>
+<summary><b>What does the reranker do, and why not run it on every chunk?</b></summary>
+
+**Answer:** It's a cross-encoder: it reads the question and the chunk together and outputs one relevance
+score, which is more accurate than comparing separate embeddings. But it has to run once per
+(question, chunk) pair, with no precomputed index, so it's slow: about 1.5–2s per chunk on this CPU. So we
+retrieve fast (vector + BM25), then rerank only the top 5.
+
+**বুঝে নাও:** BCS-এ প্রিলি দিয়ে লাখো থেকে বাছাই, ভাইভা শুধু শেষ কয়েকজনের।
+</details>
+
+<details>
+<summary><b>How did you pick 5 rerank candidates?</b></summary>
+
+**Answer:** Measured 20, 10 and 5: identical scores (MRR 0.986, all@5 36/36), latency 32s, 18s, 11s. So 5.
+My first measurement was wrong: one setting controlled both the rerank count and the search depth, so two
+things changed at once. I separated them, added a regression test (verified it fails on the old code), and
+re-measured.
+
+**বুঝে নাও:** লবণ আর মরিচ একসাথে বাড়িয়ে ফেলেছিলাম, তাই আলাদা করে আবার মেপেছি।
+</details>
+
+<details>
+<summary><b>Retrieval takes 11 seconds. What would you do about it?</b></summary>
+
+**Answer:** First I measured where the time goes: embedding 2.5s, search ~0, reranking 7–10s. So the
+reranker is the target. Options, roughly cheapest first: fewer candidates (already 5); a smaller reranker;
+int8 quantization or ONNX Runtime for the cross-encoder; a GPU (none here); caching repeated questions.
+If none is enough, the measured fallback is vector-only (2.5s, MRR 0.935). I'd decide with the eval, not by feel.
+
+**বুঝে নাও:** জ্যামে কোন মোড়ে আটকাই আগে দেখি। পুরো রাস্তা না, ওই এক সিগনাল ঠিক করলেই বেশিরভাগ সময় বাঁচে।
+</details>
+
+<details>
+<summary><b>BM25 ranked the error-codes file #2 for ND-1042. Did you tune it to fix that?</b></summary>
+
+**Answer:** No. I measured why: length normalization (the error table is 124 tokens vs 31 for the
+rate-limits chunk) and no stemming ("mean" vs "Meaning"). The rate-limits chunk also mentions ND-1042,
+so #2 is reasonable. Tuning BM25 to win one question is overfitting. The brief says "find the error codes
+file"; the full pipeline ranks it #1, and BM25 has it in its top 2.
+
+**বুঝে নাও:** একটা প্রশ্নে পাশ করাতে নিয়ম বাঁকানো মানে পরীক্ষার প্রশ্ন ফাঁস করে পড়া। বাকি প্রশ্নে ধরা খাব।
+</details>
 
 ---
 
@@ -678,7 +939,7 @@ We store prefixes per model in one dict.
 |---|---|
 | M1 | 50 chunks from 12 files · 33 tests passing |
 | M2 | bge-m3 (chosen by score): hit@5 100% · all@5 34/36 · MRR 0.935 · 47 tests passing |
-| M3 | — |
+| M3 | rerank pipeline: MRR 0.935 → 0.986 · all@5 34 → 36/36 · 11.4s/question on CPU · 73 tests |
 | M4 | — |
 | M5 | — |
 | M6 | Retrieval hit rate: — (target ≥ 90%) · Answer correctness: — (target ≥ 85%) |

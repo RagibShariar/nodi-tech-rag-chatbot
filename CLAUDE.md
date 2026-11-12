@@ -151,8 +151,10 @@ Fill this in as we build. Keep it accurate.
 # ingest:       python -m src.ingest.run   (prints chunks, writes artifacts/chunks.jsonl)
 # fast tests:   pytest -m "not integration"   (integration tests need Ollama running)
 # index:        python -m src.retrieval.index [--model bge-m3]   (~3 min on CPU)
-# search:       python -m src.retrieval.search "question" [--model bge-m3] [-k 5]
-# retrieval:    python -m scripts.retrieval_check [--models bge-m3 ...]   (hit@5, all@5, MRR)
+# search:       python -m src.retrieval.search "question" [--mode vector|bm25|hybrid|rerank] [-k 5]
+# retrieval:    python -m scripts.retrieval_check --modes vector bm25 hybrid rerank [--models bge-m3]
+#               (hit@5, all@5, MRR, s/question; rerank mode ~11s/question on CPU, use python -u to see progress)
+# settings:     .env (see .env.example): RETRIEVAL_MODE, SEARCH_DEPTH, CANDIDATES, RRF_K, models
 # ollama:       %LOCALAPPDATA%\Programs\Ollama\ollama.exe  (server on localhost:11434)
 # run API:      (TBD in M4)
 # run eval:     (TBD in M6)

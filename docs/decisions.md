@@ -34,3 +34,30 @@ and is widely supported by ML libraries we need later (Qdrant client, sentence-t
 - Compared bge-m3, nomic-embed-text, qwen3-embedding:0.6b on 36 eval questions (docs/experiments.md, E1).
 - bge-m3: hit@5 100%, MRR 0.935, best on every metric, no misses. nomic missed the cross-language
   question; qwen3-embedding missed two exact-code questions.
+
+## 2026-11-12 · M3 · rank_bm25 for keyword search
+
+- In-memory BM25 over 50 chunks builds in milliseconds; no server.
+- Rejected: Postgres full-text search (no Postgres here; `ts_rank` is not BM25).
+- Tokenizer keeps hyphenated codes whole and split (`nd-1042`, `nd`, `1042`) and covers the Bangla
+  Unicode block. No stemming yet ("mean" ≠ "Meaning" cost ND-1042 the #1 spot in BM25 alone).
+
+## 2026-11-12 · M3 · sentence-transformers (PyTorch) for the reranker
+
+- Reverses the M2 "no PyTorch" choice for one reason: Ollama 0.40.16 has no rerank endpoint (probed:
+  `/api/rerank` and `/v1/rerank` return 404). Embeddings stay on Ollama.
+- Windows needed the Microsoft VC++ runtime for PyTorch (installed by the user; admin required).
+- Imported lazily, so vector/bm25/hybrid modes never load PyTorch.
+
+## 2026-11-12 · M3 · Default retrieval: rerank, 5 candidates (by score)
+
+- E2: rerank MRR 0.986 / all@5 36/36, vs vector 0.935 / 34 and hybrid 0.887 / 36.
+- 5, 10 and 20 candidates scored identically; 5 is fastest (11.4s vs 32.2s per question on CPU).
+- Search depth (20) and rerank candidates are separate settings (a coupled version gave a confounded
+  measurement, see E2).
+- Risk: ~11s retrieval latency on CPU. Fallback: `RETRIEVAL_MODE=vector`.
+
+## 2026-11-12 · M3 · ND-1042 criterion changed (option A)
+
+- Spec said "BM25 alone ranks error codes #1"; that was stricter than the brief ("find the error codes
+  file"). Now: full pipeline #1 (met: 0.784 vs 0.649), BM25 alone top 2 (met: #2).

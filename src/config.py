@@ -15,3 +15,10 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "bge-m3")
 QDRANT_PATH = ROOT / os.getenv("QDRANT_PATH", "artifacts/qdrant")
 QDRANT_URL = os.getenv("QDRANT_URL") or None  # set -> use a Qdrant server instead of local mode
+
+RERANK_MODEL = os.getenv("RERANK_MODEL", "BAAI/bge-reranker-v2-m3")
+SEARCH_DEPTH = int(os.getenv("SEARCH_DEPTH", "20"))  # how many results vector and BM25 each return
+CANDIDATES = int(os.getenv("CANDIDATES", "5"))       # how many fused results the reranker re-scores
+# 5, not 20: same scores on the eval (E2), 11s vs 32s per question on CPU. See docs/experiments.md.
+RRF_K = int(os.getenv("RRF_K", "60"))            # RRF constant (standard: 60)
+RETRIEVAL_MODE = os.getenv("RETRIEVAL_MODE", "rerank")  # vector | bm25 | hybrid | rerank

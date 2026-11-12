@@ -1,5 +1,29 @@
 # Progress
 
+## Session 1 (cont.) · 2026-11-12 · M3 Hybrid search + rerank
+
+### Done
+- `src/retrieval/`: bm25.py (Bangla-aware tokenizer, codes kept whole + split), fusion.py (RRF),
+  rerank.py (bge-reranker-v2-m3, lazy PyTorch), pipeline.py (4 modes + debug trail); search CLI `--mode`;
+  retrieval_check `--modes` + seconds per question.
+- Installed rank_bm25, sentence-transformers (torch CPU); user installed the VC++ runtime (admin).
+- E2: rerank MRR 0.986, all@5 36/36 (vector 0.935/34, hybrid 0.887/36, bm25 0.848/33).
+  Default: rerank, 5 candidates (same score as 20, 11.4s vs 32.2s per question).
+- Found + fixed a measurement bug (CANDIDATES also shrank search depth); regression test verified by mutation.
+- ND-1042 criterion changed to option A (full pipeline #1, BM25 top 2). Both met.
+- 73 tests pass.
+
+### Concepts covered
+- Lexical vs semantic search, BM25 (TF, IDF, length normalization), tokenization, stemming.
+- RRF (ranks not scores, k=60, agreement wins, ties). Bi-encoder vs cross-encoder; retrieve-then-rerank.
+- Confounded experiments; latency budgeting (where the seconds go).
+
+### Open questions / things to watch
+- ~11s retrieval per question on CPU, before the LLM even starts (M4). Fallback: vector mode (2.5s).
+- Reranker scores ≈ 0 for irrelevant chunks: possible signal for "I don't know" in M5.
+- Reranker load contacts Hugging Face Hub each start (HF_TOKEN warning); consider offline mode.
+- No stemming in BM25 ("mean" vs "Meaning"). Possible future experiment.
+
 ## Session 1 (cont.) · 2026-11-12 · M2 Vector search
 
 ### Done

@@ -1,10 +1,10 @@
-"""Baseline retrieval check: is the expected source document in the top-k chunks?
+"""Retrieval check: is the expected source document in the top-k chunks?
 
 Retrieval only: no LLM, no answer grading (that's M6).
 
 Usage:
-  python -m scripts.retrieval_check                       # all three models
-  python -m scripts.retrieval_check --models bge-m3 -k 5
+  python -m scripts.retrieval_check --modes vector bm25 hybrid rerank     # M3: compare pipeline stages
+  python -m scripts.retrieval_check --models bge-m3 nomic-embed-text --modes vector   # M2: compare models
 """
 
 import argparse
@@ -19,9 +19,8 @@ from src import config
 from src.ingest.chunk import chunk_all
 from src.ingest.parse import load_all
 from src.retrieval.embed import embed
-from src.retrieval.vector_store import build_index, collection_name, get_client, search
-
-DEFAULT_MODELS = ["bge-m3", "nomic-embed-text", "qwen3-embedding:0.6b"]
+from src.retrieval.pipeline import MODES, Retriever
+from src.retrieval.vector_store import build_index, collection_name, get_client
 
 
 @dataclass(frozen=True)
@@ -80,23 +79,26 @@ def summarize(results: list[Result]) -> dict:
     }
 
 
-def run_model(client, model: str, questions: list[Question], k: int) -> list[Result]:
+def make_retriever(client, model: str, chunks, rerank_fn) -> Retriever:
     collection = collection_name(model)
     embed_fn = lambda text, kind: embed(text, kind, model)  # noqa: E731
     if not client.collection_exists(collection):
-        print(f"  collection {collection} missing -> indexing 50 chunks (slow on CPU)...", flush=True)
-        build_index(client, collection, chunk_all(load_all(config.DATA_DIR)), embed_fn)
+        print(f"  collection {collection} missing -> indexing {len(chunks)} chunks (slow on CPU)...", flush=True)
+        build_index(client, collection, chunks, embed_fn)
+    return Retriever(chunks, client, collection, embed_fn, rerank_fn)
 
+
+def run(retriever: Retriever, mode: str, questions: list[Question], k: int) -> list[Result]:
     results = []
     for q in questions:
-        returned = [hit.source for hit in search(client, collection, q.question, embed_fn, k=k)]
+        returned = [r.chunk.source for r in retriever.retrieve(q.question, mode=mode, k=k)]
         results.append(Result(q, returned, first_hit_rank(q.sources, returned)))
     return results
 
 
-def print_report(model: str, results: list[Result], k: int, seconds: float) -> None:
+def print_report(name: str, results: list[Result], k: int, seconds: float) -> None:
     s = summarize(results)
-    print(f"\n=== {model} ===  ({seconds:.0f}s)")
+    print(f"\n=== {name} ===  ({seconds:.0f}s, {seconds / s['n']:.1f}s per question)")
     print(f"hit@{k}         : {s['hits']}/{s['n']} = {s['hits'] / s['n']:.1%}")
     print(f"all sources@{k} : {s['all_found']}/{s['n']}")
     print(f"MRR           : {s['mrr']:.3f}")
@@ -122,27 +124,39 @@ def print_report(model: str, results: list[Result], k: int, seconds: float) -> N
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="Retrieval hit@k on the eval questions.")
-    parser.add_argument("--models", nargs="+", default=DEFAULT_MODELS)
+    parser.add_argument("--models", nargs="+", default=[config.EMBED_MODEL], help="embedding models")
+    parser.add_argument("--modes", nargs="+", choices=MODES, default=["vector"])
     parser.add_argument("-k", type=int, default=5)
     args = parser.parse_args()
 
     questions = load_questions(config.EVAL_DIR / "eval_questions.csv")
     print(f"{len(questions)} questions with an expected source document, top-{args.k}")
 
+    rerank_fn = None
+    if "rerank" in args.modes:
+        from src.retrieval.rerank import CrossEncoderReranker  # loads PyTorch only when needed
+        rerank_fn = CrossEncoderReranker()
+
+    chunks = chunk_all(load_all(config.DATA_DIR))
     summary = {}
     client = get_client()
     try:
         for model in args.models:
-            start = time.perf_counter()
-            results = run_model(client, model, questions, args.k)
-            print_report(model, results, args.k, time.perf_counter() - start)
-            summary[model] = summarize(results)
+            retriever = make_retriever(client, model, chunks, rerank_fn)
+            for mode in args.modes:
+                name = f"{model} / {mode}"
+                start = time.perf_counter()
+                results = run(retriever, mode, questions, args.k)
+                seconds = time.perf_counter() - start
+                print_report(name, results, args.k, seconds)
+                summary[name] = {**summarize(results), "sec_per_q": seconds / len(questions)}
     finally:
         client.close()
 
-    print(f"\n{'model':<22} {'hit@' + str(args.k):>8} {'all@' + str(args.k):>8} {'MRR':>7}")
-    for model, s in summary.items():
-        print(f"{model:<22} {s['hits'] / s['n']:>8.1%} {s['all_found']:>5}/{s['n']} {s['mrr']:>7.3f}")
+    print(f"\n{'model / mode':<30} {'hit@' + str(args.k):>7} {'all@' + str(args.k):>7} {'MRR':>7} {'s/q':>6}")
+    for name, s in summary.items():
+        print(f"{name:<30} {s['hits'] / s['n']:>7.1%} {s['all_found']:>4}/{s['n']} "
+              f"{s['mrr']:>7.3f} {s['sec_per_q']:>6.1f}")
 
 
 if __name__ == "__main__":

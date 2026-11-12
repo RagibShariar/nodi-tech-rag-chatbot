@@ -24,7 +24,7 @@ itself is unchanged).
 |---|---|---|
 | M1 | Ingestion: parse markdown + PDF (with table), chunk by headings | ✅ Done |
 | M2 | Vector search: bge-m3 embeddings in Qdrant (hit@5 100%, MRR 0.935 on 36 questions) | ✅ Done |
-| M3 | Hybrid search: BM25 + RRF fusion + reranker | ⏳ |
+| M3 | Hybrid search: BM25 + RRF fusion + bge-reranker (MRR 0.935 → 0.986, all@5 34 → 36 of 36) | ✅ Done |
 | M4 | Chat: streaming answers with citations, follow-up questions | ⏳ |
 | M5 | Guardrails: "I don't know", prompt-injection defence | ⏳ |
 | M6 | Evaluation: 40-question eval set | ⏳ |
@@ -44,12 +44,14 @@ user message -> rewrite follow-up into standalone question
 
 ## Stack
 
-Python 3.12 · pdfplumber · Ollama (bge-m3 embeddings) · Qdrant (local mode) · pytest.
-Planned: FastAPI · Qwen via Ollama · rank_bm25 · bge-reranker-v2-m3.
+Python 3.12 · pdfplumber · Ollama (bge-m3 embeddings) · Qdrant (local mode) · rank_bm25 ·
+sentence-transformers (bge-reranker-v2-m3, CPU) · pytest. Planned: FastAPI · Qwen via Ollama.
 
 ## Quick start (Windows / PowerShell)
 
-Prerequisite: [Ollama](https://ollama.com) running, then `ollama pull bge-m3`.
+Prerequisites: [Ollama](https://ollama.com) running, then `ollama pull bge-m3`. On Windows, PyTorch (for
+the reranker) needs the Microsoft VC++ runtime: `winget install --id Microsoft.VCRedist.2015+.x64` (admin).
+The reranker model (~2.3 GB) downloads from Hugging Face on first use.
 
 ```powershell
 python -m venv .venv
@@ -59,8 +61,9 @@ copy .env.example .env      # optional: defaults work without it
 
 python -m src.ingest.run                      # parse + chunk all documents, print chunks
 python -m src.retrieval.index                 # embed chunks into Qdrant (~3 min on CPU)
-python -m src.retrieval.search "How many days of annual leave do I get?"
-python -m scripts.retrieval_check             # hit@5 / MRR on the eval questions
+python -m src.retrieval.search "What does error ND-1042 mean?"             # full pipeline + debug trail
+python -m src.retrieval.search "What does error ND-1042 mean?" --mode bm25 # vector | bm25 | hybrid | rerank
+python -m scripts.retrieval_check --modes vector hybrid rerank            # hit@5 / all@5 / MRR per mode
 
 pytest -m "not integration"                   # fast tests (no Ollama needed)
 pytest                                        # all tests
@@ -75,7 +78,8 @@ pytest                                        # all tests
 ├── src/
 │   ├── config.py          # settings from .env with defaults
 │   ├── ingest/            # parse.py (md/PDF -> Document), chunk.py (Document -> Chunks), run.py (CLI)
-│   └── retrieval/         # embed.py (Ollama), vector_store.py (Qdrant), index.py + search.py (CLIs)
+│   └── retrieval/         # embed (Ollama), vector_store (Qdrant), bm25, fusion (RRF), rerank,
+│                          # pipeline (all modes + debug trail), index + search (CLIs)
 ├── scripts/
 │   └── retrieval_check.py # hit@5 / all@5 / MRR over the eval questions
 ├── tests/                 # mirrors src/ and scripts/
