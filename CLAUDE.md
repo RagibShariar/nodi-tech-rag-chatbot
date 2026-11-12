@@ -41,6 +41,8 @@ We are building a RAG chatbot that answers questions about **Nodi Tech Ltd.** (a
 5. **Commit** with a clear message after each working milestone (suggest the commit; I run it unless I say otherwise).
 6. **Re-run the evaluation** after any change to chunking, embeddings, retrieval or prompts. **The score decides, not impressions.** Record before/after numbers in `docs/experiments.md`.
 7. **Update `PROGRESS.md`** at the end of each session: what's done, what I learned, open questions.
+   Also update **`CONTEXT.md`** (current state, next step, last-updated line incl. which machine), so the
+   other machine can continue. Record which machine every timing measurement was taken on.
 8. **Update `docs/project_notes.md`** at the end of each milestone. It is my study guide for when I am
    questioned about this project. Fill the milestone's section with the same structure as M1: goal, what
    we built, how it works (diagram), decisions + why + alternatives rejected, problems hit and fixes,
@@ -166,6 +168,8 @@ Fill this in as we build. Keep it accurate.
 
 ## 12. Start-of-session checklist
 
-1. Read `CLAUDE.md`, `PROGRESS.md` and the current milestone spec.
+1. Read `CLAUDE.md`, **`CONTEXT.md`** (current state, next step, machine setup, working agreements),
+   `PROGRESS.md` and the current milestone spec. I work from two machines (office PC, home laptop): if this
+   machine isn't set up yet (no `.venv`, no Ollama models, no `artifacts/qdrant`), follow CONTEXT.md section 3.
 2. Tell me in 2-3 lines where we are and what today's milestone is.
 3. If no spec exists for it, write one and wait for approval.

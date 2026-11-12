@@ -109,6 +109,7 @@ pytest                                        # all tests
 
 ## Documentation
 
+- **[CONTEXT.md](CONTEXT.md)**: current state, next step, and how to set up a new machine.
 - **[docs/project_notes.md](docs/project_notes.md)**: start here. How each part works and why.
 - [docs/specs/](docs/specs/): the spec each milestone was built against.
 - [docs/decisions.md](docs/decisions.md): tool and design choices with reasons.

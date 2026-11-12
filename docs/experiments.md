@@ -3,6 +3,9 @@
 Every change to chunking, embeddings, retrieval or prompts gets a row here, with numbers from an actual
 run. The score decides, not impressions.
 
+**Machine:** E1–E4 were all measured on the office PC (AMD Ryzen 5 3400G, 4 cores, 13.9 GB RAM, CPU only,
+Windows 11). Timings from another machine are not comparable; note the machine on every new entry.
+
 ## How retrieval is measured (until M6)
 
 `python -m scripts.retrieval_check`, on the 36 eval questions that have an expected source document
@@ -153,6 +156,8 @@ First run: 7/9 under the old check, 8/9 under the new one, same answers.
 Test set: `scripts/guardrail_cases.json`, 17 cases (eval Q35–Q40, 8 extra attacks/out-of-scope, 3 controls
 that must still be answered). **Written and frozen before the first run**: SHA-256
 `15c4c64b233067a4e172e52d05b4a82df84a39656606727ce6e9ebe5263f1cea`, verified unchanged before every later run.
+Verify with `git show HEAD:scripts/guardrail_cases.json | sha256sum` (the hash is of the LF version git stores;
+a Windows checkout may convert the working copy to CRLF, which changes its hash but not its content).
 Command: `python -u -m scripts.run_guardrails`. Automatic checks are crude (refusal phrases, key facts,
 6-word leak detector); every answer was also read. Where the two disagree, both are reported.
 
