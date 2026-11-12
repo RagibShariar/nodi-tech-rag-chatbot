@@ -4,7 +4,7 @@
 > history do **not** move between machines; everything needed to continue is in this repo.
 > Update the "Current state" and "Next step" sections at the end of every session.
 
-Last updated: 2026-11-12 (end of M5, office PC)
+Last updated: 2026-11-12 (M6 spec drafted, waiting for approval; office PC)
 
 ---
 
@@ -17,7 +17,7 @@ Last updated: 2026-11-12 (end of M5, office PC)
 | M3 Hybrid + rerank | ✅ | `ebe4fcc` | BM25 + RRF + bge-reranker: MRR 0.986, all@5 36/36; default rerank, 5 candidates |
 | M4 Chat | ✅ | `d960a4c` | qwen3.5:4b, streaming page, follow-ups: 8/9 key facts, 9/9 citations, ~1 min/answer on CPU |
 | M5 Guardrails | ✅ | `f021e77` | leaks 2 → 0, 15/17 guardrail cases, eval Q35–Q40 5/6 |
-| **M6 Evaluation** | ⏳ **next** | — | not started, no spec yet |
+| **M6 Evaluation** | ⏳ **next** | — | spec drafted (`docs/specs/M6.md`), **waiting for approval**, no code yet |
 
 Tests: 123 passing (`pytest`), 116 fast (`pytest -m "not integration"`).
 
@@ -32,7 +32,13 @@ Where the details are:
 
 ## 2. Next step: M6 Evaluation
 
-Start by writing `docs/specs/M6.md` and getting approval (no code before that).
+**The spec is written: [docs/specs/M6.md](docs/specs/M6.md). Status: DRAFT, waiting for the user's approval.**
+Next session: show the spec summary (in romanized Banglish), teach the concepts first (evals, metrics,
+LLM-as-judge and its limits), and ask the 3 open questions at the end of the spec:
+1. human grading: user grades all 40 (recommended) or reviews only judge disagreements;
+2. seeds: 3 seeds, ~2.5 h in the background (recommended), or 1 seed + re-runs of failures;
+3. judge model: qwen3.5:4b first, qwen3.5:9b only if agreement with the human grades is poor.
+No code before approval.
 
 From the brief/CLAUDE.md: a script that runs all 40 questions in `eval/eval_questions.csv` and reports
 **retrieval hit rate** (target ≥ 90%) and **answer correctness vs `expected_answer`** (target ≥ 85%), plus the
