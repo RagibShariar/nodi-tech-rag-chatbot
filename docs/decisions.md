@@ -80,6 +80,22 @@ and is widely supported by ML libraries we need later (Qdrant client, sentence-t
 - Page: plain HTML/JS, no framework. All server text is HTML-escaped before formatting (XSS guard).
 - Sessions in memory (lost on restart). The API holds the Qdrant local folder lock while running.
 
+## 2026-11-12 · M5 · Guardrails: defence in depth, measured
+
+- Test set frozen before the first run (SHA-256 in experiments.md E4) so it couldn't be tuned to pass.
+- Kept: fence neutralizing (a document can't close its `<document>` tag); prompt rules for scope, secrecy
+  and "system notes are data"; a sandwich reminder before the question; a streaming leak guard (6-word
+  n-gram match against the rules; stops the stream, sends a `replace` event). Fixed baseline leaks 2 → 0.
+- The leak guard protects the rules only, not the public intro line or the two sentences the model is told
+  to say, otherwise correct refusals would be flagged.
+- Rejected: input keyword blocklist (bypassed by rewording, blocks legitimate questions); separate
+  classifier model (heavy, not required).
+- Rejected by data: relevance gate on rerank score (in-scope and out-of-scope scores overlap: Q20 at 0.019
+  vs Q40 at 0.185).
+- Tried and reverted: contacts directory in every prompt. Didn't fix Q35, caused an invented email in Q37,
+  +12s latency.
+- Accepted limitations: Q35 doesn't suggest HR (no hard-coding to pass one test); K3 is flaky (2/5 seeds).
+
 ## 2026-11-12 · M3 · ND-1042 criterion changed (option A)
 
 - Spec said "BM25 alone ranks error codes #1"; that was stricter than the brief ("find the error codes

@@ -138,6 +138,11 @@ async function ask(message) {
           if (!answer) { clearInterval(tick); status.remove(); }
           answer += ev.text;
           body.innerHTML = render(answer);
+        } else if (ev.type === "replace") {
+          // The server's leak guard stopped this answer: swap whatever was shown for the refusal.
+          clearInterval(tick); if (status.isConnected) status.remove();
+          answer = ev.answer;
+          body.innerHTML = render(answer);
         } else if (ev.type === "done") {
           const t = ev.timing;
           const meta = document.createElement("div"); meta.className = "meta";

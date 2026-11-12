@@ -159,6 +159,8 @@ Fill this in as we build. Keep it accurate.
 # run API:      python -m uvicorn src.api.app:app --port 8000   (page at http://127.0.0.1:8000, ~20s startup)
 #               NOTE: holds the Qdrant local folder lock; stop it before running search/retrieval/conversation scripts
 # chats:        python -u -m scripts.run_conversations   (~9 min on CPU; saves artifacts/conversation_results.json)
+# guardrails:   python -u -m scripts.run_guardrails [--only Q35 X1]   (~14 min; test set scripts/guardrail_cases.json is FROZEN, check its SHA-256 in docs/experiments.md E4)
+# gate data:    python -u -m scripts.rerank_scores   (top rerank score per eval question)
 # run eval:     (TBD in M6)
 ```
 

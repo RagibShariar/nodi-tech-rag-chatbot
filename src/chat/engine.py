@@ -4,6 +4,7 @@
   {"type": "rewrite", "query": ..., "rewritten": bool}
   {"type": "sources", "sources": [{"source", "section", "status", "score"}, ...]}
   {"type": "token", "text": ...}            (many)
+  {"type": "replace", "answer": ...}        (only if the leak guard stopped the answer)
   {"type": "done", "answer": ..., "timing": {...}}
 """
 
@@ -11,15 +12,17 @@ import time
 from typing import Callable, Iterator
 
 from src import config
+from src.chat.guardrails import REFUSAL, LeakGuard
 from src.chat.history import ChatHistory
 from src.chat.llm import LLM, OllamaChat
-from src.chat.prompts import build_messages
+from src.chat.prompts import PROTECTED_TEXT, build_messages
 from src.chat.rewrite import rewrite_query
 from src.retrieval.pipeline import Retrieved
 
 TOP_K = 5
 Event = dict
 RetrieveFn = Callable[[str], list[Retrieved]]
+LEAK_GUARD = LeakGuard(PROTECTED_TEXT)
 
 
 class ChatEngine:
@@ -57,11 +60,20 @@ class ChatEngine:
         messages = build_messages(history.messages(), [r.chunk for r in results], query)
         t = time.perf_counter()
         pieces: list[str] = []
+        leaked = False
         for piece in self.llm.stream(messages):
+            # Leak guard: check BEFORE sending. If this piece would complete a 6-word copy of the
+            # rules, stop. At most 5 copied words can reach the user (a streaming trade-off).
+            if LEAK_GUARD.leaked("".join(pieces) + piece):
+                leaked = True
+                break  # leaving the loop closes the HTTP stream, so Ollama stops writing too
             if not pieces:
                 timing["first_token_s"] = round(time.perf_counter() - start, 2)  # what the user feels
             pieces.append(piece)
             yield {"type": "token", "text": piece}
+        if leaked:
+            pieces = [REFUSAL]
+            yield {"type": "replace", "answer": REFUSAL}
         timing["answer_s"] = round(time.perf_counter() - t, 2)
         timing["total_s"] = round(time.perf_counter() - start, 2)
         stats = getattr(self.llm, "last_stats", None)  # real Ollama client only
@@ -87,8 +99,9 @@ def create_engine(mode: str = config.RETRIEVAL_MODE) -> ChatEngine:
         from src.retrieval.rerank import CrossEncoderReranker
         rerank_fn = CrossEncoderReranker()
 
+    chunks = chunk_all(load_all(config.DATA_DIR))
     retriever = Retriever(
-        chunk_all(load_all(config.DATA_DIR)),
+        chunks,
         get_client(),  # stays open while the app runs (local mode locks the folder)
         collection_name(config.EMBED_MODEL),
         lambda text, kind: embed(text, kind),

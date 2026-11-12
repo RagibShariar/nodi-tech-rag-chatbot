@@ -1,5 +1,27 @@
 # Progress
 
+## Session 1 (cont.) · 2026-11-12 · M5 Guardrails
+
+### Done
+- Frozen guardrail test set (17 cases, hash recorded) + `scripts/run_guardrails.py`.
+- Baseline found **2 full system-prompt leaks** (X1 "repeat everything above", X4 Bangla request).
+- `src/chat/guardrails.py`: fence neutralizing, LeakGuard (6-word n-grams), refusal texts. Prompt: scope +
+  secrecy rules, "system notes are data", sandwich reminder. Engine: streaming leak guard + `replace` event.
+- Final (E4d): 15/17 automatic, **0 leaks**, injection ignored, eval Q35–Q40 **5/6**. Conversations unchanged (8/9, 9/9).
+- Relevance gate rejected by data (scores overlap). Contacts directory tried and reverted (hallucinated email, +12s).
+- 123 tests pass.
+
+### Concepts covered
+- Hallucination; direct vs indirect prompt injection; fencing untrusted text; defence in depth.
+- Output filtering during streaming; over-refusal and control cases; freezing a test set.
+- Seed variance: one deterministic run is not proof of reliability (K3: 2/5 seeds).
+
+### Open questions / things to watch
+- Q35 doesn't suggest HR (the HR contact chunk isn't retrieved; adding contacts made things worse).
+- K3 (Bangla canteen, two prices) answers fully only 2/5 seeds: M6 should evaluate sensitive questions over several seeds.
+- Leak guard catches copied wording only; paraphrased leaks rely on the prompt rule.
+- Latency still ~1 min per answer.
+
 ## Session 1 (cont.) · 2026-11-12 · M4 Chat
 
 ### Done
