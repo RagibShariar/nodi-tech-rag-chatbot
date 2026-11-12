@@ -100,7 +100,7 @@ def test_deterministic():
 
 def test_every_eval_source_document_is_chunked(chunks):
     sources = {c.source for c in chunks}
-    with EVAL_CSV.open(encoding="utf-8") as f:
+    with EVAL_CSV.open(encoding="utf-8-sig") as f:  # the CSV starts with a BOM
         for row in csv.DictReader(f):
             for name in row["source_documents"].split(";"):
                 name = name.strip()

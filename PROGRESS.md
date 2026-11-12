@@ -1,5 +1,27 @@
 # Progress
 
+## Session 1 (cont.) · 2026-11-12 · M2 Vector search
+
+### Done
+- Installed Ollama 0.40.16; pulled bge-m3, nomic-embed-text, qwen3-embedding:0.6b.
+- `src/config.py` + `.env.example`; `src/retrieval/` (embed via Ollama REST, Qdrant local mode,
+  index + search CLIs); `scripts/retrieval_check.py` (hit@5, all@5, MRR).
+- Baseline (E1, docs/experiments.md): bge-m3 hit@5 100%, MRR 0.935; nomic 97.2% / 0.898;
+  qwen3-embedding 94.4% / 0.880. bge-m3 stays default.
+- 47 tests pass (unit + integration).
+- Notes made bilingual (English for interviews, simple Bangla with real-life analogies).
+
+### Concepts covered
+- Embeddings, cosine similarity, vector DB (Qdrant: collection/point/payload).
+- Embedding model vs LLM (librarian vs writer). Query/document prefixes.
+- Retrieval metrics: hit@k, all@k, MRR, ceiling effect. Dependency injection with fakes.
+
+### Open questions / things to watch
+- Old leave policy (15 days) outranks the handbook (18 days) in vector search: must be handled in M4/M5.
+- hit@5 saturated at 100%: judge M3 by MRR and all@5.
+- CPU-only embedding is ~3s per text; affects chat latency in M4.
+- Q27/Q38 partials: pricing table not retrieved for "Starter plan + API".
+
 ## Session 1 · 2026-11-12 · M1 Ingestion
 
 ### Done

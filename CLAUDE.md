@@ -46,6 +46,10 @@ We are building a RAG chatbot that answers questions about **Nodi Tech Ltd.** (a
    we built, how it works (diagram), decisions + why + alternatives rejected, problems hit and fixes,
    how we know it works, numbers (real, from actual runs), known limitations, and "questions I should be
    able to answer" with answers. Also update the glossary, the architecture status and "numbers at a glance".
+   **Language: bilingual.** English part = what I say in an interview (precise). Bangla part (Bangla
+   script, simple everyday Bangla) = how I understand it, always with a real-life Bangladeshi analogy
+   (e.g. open-book exam, kathal-er koya, oshudher pata). Q&A: English answer + "বুঝে নাও" in Bangla.
+   This file is the one exception to "docs stay in English".
 9. **Keep the codebase organized:** `tests/` mirrors `src/` (e.g. `src/retrieval/` -> `tests/retrieval/`),
    one module per job, no stray scripts in the root. Keep `README.md` status and layout current.
 
@@ -145,6 +149,11 @@ Fill this in as we build. Keep it accurate.
 # setup:        python -m venv .venv ; .venv\Scripts\Activate.ps1 ; pip install -r requirements.txt
 # run tests:    pytest   (or: .venv\Scripts\python.exe -m pytest)
 # ingest:       python -m src.ingest.run   (prints chunks, writes artifacts/chunks.jsonl)
+# fast tests:   pytest -m "not integration"   (integration tests need Ollama running)
+# index:        python -m src.retrieval.index [--model bge-m3]   (~3 min on CPU)
+# search:       python -m src.retrieval.search "question" [--model bge-m3] [-k 5]
+# retrieval:    python -m scripts.retrieval_check [--models bge-m3 ...]   (hit@5, all@5, MRR)
+# ollama:       %LOCALAPPDATA%\Programs\Ollama\ollama.exe  (server on localhost:11434)
 # run API:      (TBD in M4)
 # run eval:     (TBD in M6)
 ```
