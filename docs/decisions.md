@@ -57,6 +57,29 @@ and is widely supported by ML libraries we need later (Qdrant client, sentence-t
   measurement, see E2).
 - Risk: ~11s retrieval latency on CPU. Fallback: `RETRIEVAL_MODE=vector`.
 
+## 2026-11-12 · M4 · qwen3.5:4b as the chat model
+
+- Ollama registry checked directly: qwen3.5 has 0.8b/2b/4b/9b dense models (4b = 3.1 GB).
+- 4b chosen by the user (no 2b download). E3: 8/9 key facts, 9/9 citations, "18 not 15" handled.
+- `think: false`: Qwen's hidden reasoning tokens would add many seconds on CPU.
+- `temperature 0.1` + fixed seed: factual, repeatable answers (identical across two runs).
+
+## 2026-11-12 · M4 · Prompt design
+
+- Stable parts first (system prompt, history), changing parts last (documents + question), so Ollama's
+  KV cache can reuse the prefix.
+- Documents fenced as `<document source section status>`; only `content` is sent (the M1 context line
+  repeats the tag and costs ~1s of prefill per chunk on this CPU).
+- Query rewriting uses its own short prompt with one example, not the answering prompt: a 4B model does
+  one job at a time better. Not tuned on the 6 test follow-ups (that would be overfitting to the test set).
+
+## 2026-11-12 · M4 · FastAPI + NDJSON streaming + plain HTML page
+
+- `POST /chat` streams one JSON event per line (same format idea as Ollama); a sync generator so a slow
+  answer doesn't block other requests. Errors become an `error` event instead of a cut stream.
+- Page: plain HTML/JS, no framework. All server text is HTML-escaped before formatting (XSS guard).
+- Sessions in memory (lost on restart). The API holds the Qdrant local folder lock while running.
+
 ## 2026-11-12 · M3 · ND-1042 criterion changed (option A)
 
 - Spec said "BM25 alone ranks error codes #1"; that was stricter than the brief ("find the error codes

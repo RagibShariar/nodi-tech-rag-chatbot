@@ -21,3 +21,16 @@ def fake_embed(text: str, kind: str) -> Embedding:
 def fake_rerank_by_length(question: str, passages: list[str]) -> list[float]:
     """Scores = passage length, so 'longest first'. Easy to predict in tests."""
     return [float(len(p)) for p in passages]
+
+
+class FakeLLM:
+    """Returns scripted replies in order, streamed word by word. Records every prompt it got."""
+
+    def __init__(self, *replies: str):
+        self.replies = list(replies)
+        self.calls: list[list[dict]] = []
+
+    def stream(self, messages):
+        self.calls.append(messages)
+        reply = self.replies.pop(0)
+        yield from re.findall(r"\S+\s*", reply)  # "18 days [x.md]" -> "18 ", "days ", "[x.md]"

@@ -7,5 +7,8 @@ __pycache__/
 # Generated output (rebuild with: python -m src.ingest.run)
 artifacts/
 
+# Browser automation output (screenshots/snapshots from testing the chat page)
+.playwright-mcp/
+
 # Secrets
 .env

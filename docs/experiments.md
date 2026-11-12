@@ -86,3 +86,62 @@ for 5 passages on a 4-core CPU), not a bug.
 approved in the M3 spec), and 5 candidates ties 10/20 on score, so latency decides.
 **Open concern for M4:** ~11s of retrieval per question *before* the LLM starts writing. If chat is too
 slow, the measured fallback is `RETRIEVAL_MODE=vector` (2.5s, MRR 0.935, all@5 34/36).
+
+---
+
+## E3 · 2026-11-12 · M4: chat with qwen3.5:4b on the 3 multi-turn conversations
+
+Setup: M3 retrieval (rerank, 5 candidates), `qwen3.5:4b` via Ollama, CPU only, `temperature 0.1`,
+`seed 42`, `think: false`, `num_ctx 8192`, history 6 turns, query rewriting with its own prompt.
+Command: `python -u -m scripts.run_conversations` (answers saved to `artifacts/conversation_results.json`).
+
+### LLM speed on this CPU (Ryzen 5 3400G, 4 cores)
+
+Measured with a fresh (uncached) prompt each time:
+
+| Prompt size | Prefill (reading the prompt) | Generation (writing) |
+|---|---|---|
+| 451 tokens | 17.7s = 25 tok/s | 6.7 tok/s |
+| 706 tokens | 29.4s = 24 tok/s | 7.8 tok/s |
+| 1,403 tokens | 54.5s = 26 tok/s | 6.2 tok/s |
+
+Prefill is linear at ~25 tok/s: **every 100 prompt tokens cost ~4 seconds.** Writing a 30–100-token answer
+takes 4–15s. So prompt size, not answer length, drives latency. Ollama's KV cache makes an identical prompt
+prefix nearly free (a repeated 429-token prompt prefilled in 0.3s).
+
+### Results (9 turns)
+
+| Check | Result |
+|---|---|
+| Key facts (crude substring check) | **8/9** |
+| Citations of a retrieved file | **9/9** |
+| "18 days, never 15" (C1 t1) | ✅ 18, and calls 15 "outdated and superseded" |
+| Follow-ups rewritten correctly | 6/6 usable (C3 t3 added "on Nodide", a harmless typo) |
+| Same answers as the first run | yes, word for word (fixed seed, low temperature) |
+
+The one failure: **C1 t3** "And what about sick leave?" → rewritten "Can I carry forward sick leave?" →
+"No, you cannot carry forward sick leave". Correct, but misses the expected "14 days per year".
+
+### Latency (CPU)
+
+| | first token | total |
+|---|---|---|
+| Reported by the script (all 9 turns) | avg 43.8s | avg 50.8s, max 80.4s |
+| **Excluding C1 t1–t2** (cache hits, see below) | **avg 52.6s** | **avg 59.8s**, max 80.4s |
+
+Breakdown per turn: rewrite 9–13s (follow-ups only) · retrieval 10–14s · prefill of 600–1,100 tokens 25–45s
+· generation 3–15s. Later turns are slower because the history grows the prompt.
+
+**Caveat:** C1 t1 and t2 (first token 12s and 13.5s) were the exact questions I had just asked in the browser
+test, so Ollama still had those prompts in its KV cache. They are not representative; the second row is.
+
+### Checker change (made after the first run, disclosed)
+
+The first run's check marked C1 t1 as failed because the answer contained "15 days". The answer was correct:
+it said 15 was outdated, which is what system-prompt rule 4 asks for and what eval Q29's expected answer
+does. The check now fails "15" only when it is *not* called outdated/superseded/old/previous (whole words,
+citations removed: the filename `..._SUPERSEDED.md` must not count). Both versions are unit-tested.
+First run: 7/9 under the old check, 8/9 under the new one, same answers.
+
+**Decision:** keep `qwen3.5:4b` (8/9 facts, 9/9 citations, follows the superseded rule). Latency of
+~1 minute is accepted for now (correctness first, as agreed); speed levers are listed in PROGRESS.md.

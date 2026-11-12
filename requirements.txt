@@ -5,3 +5,5 @@ httpx==0.28.1          # HTTP client for Ollama's REST API (M2)
 python-dotenv==1.2.4   # load settings from .env (M2)
 rank_bm25==0.2.2       # BM25 keyword search (M3)
 sentence-transformers==6.3.0  # cross-encoder reranker (M3); pulls in torch (CPU). Windows needs the VC++ runtime
+fastapi==0.162.5       # chat API (M4)
+uvicorn==0.54.0        # server that runs the FastAPI app (M4)

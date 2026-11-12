@@ -22,3 +22,9 @@ CANDIDATES = int(os.getenv("CANDIDATES", "5"))       # how many fused results th
 # 5, not 20: same scores on the eval (E2), 11s vs 32s per question on CPU. See docs/experiments.md.
 RRF_K = int(os.getenv("RRF_K", "60"))            # RRF constant (standard: 60)
 RETRIEVAL_MODE = os.getenv("RETRIEVAL_MODE", "rerank")  # vector | bm25 | hybrid | rerank
+
+CHAT_MODEL = os.getenv("CHAT_MODEL", "qwen3.5:4b")
+LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.1"))  # low = factual, repeatable
+LLM_SEED = int(os.getenv("LLM_SEED", "42"))                   # fixed seed = same answer for same prompt
+NUM_CTX = int(os.getenv("NUM_CTX", "8192"))                   # context window, in tokens
+HISTORY_TURNS = int(os.getenv("HISTORY_TURNS", "6"))          # 1 turn = 1 question + 1 answer

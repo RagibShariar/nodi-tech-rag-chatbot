@@ -1,5 +1,31 @@
 # Progress
 
+## Session 1 (cont.) · 2026-11-12 · M4 Chat
+
+### Done
+- Pulled qwen3.5:4b (registry checked: 0.8b/2b/4b/9b exist). Installed fastapi + uvicorn.
+- `src/chat/`: llm.py (Ollama /api/chat NDJSON streaming + speed stats), prompts.py (system rules, fenced
+  documents), rewrite.py (follow-up → standalone question), history.py (last 6 turns), engine.py (events).
+- `src/api/`: FastAPI (`/`, `/chat` NDJSON stream, `/reset`) + plain HTML page (escaped output, live timer,
+  citation chips, sources list). Tested in a browser; screenshot in docs/images/m4_chat.png.
+- `scripts/run_conversations.py`: E3 = 8/9 key facts, 9/9 citations, identical answers across runs.
+- Measured LLM speed: prefill ~25 tok/s, generation ~7 tok/s → ~1 minute per answer on CPU.
+- 104 tests pass (incl. end-to-end integration).
+
+### Concepts covered
+- Prompt, system prompt, message roles, context window, temperature, seed.
+- Query rewriting; why not to tune prompts on the test set (overfitting).
+- Streaming (NDJSON, generators, fetch stream reader); prefill vs generation; KV cache and prompt order.
+- XSS: escape model/document text before rendering.
+
+### Open questions / things to watch
+- **Latency ~1 min per answer.** Levers to measure (one at a time, eval decides): rewrite prompt sharing the
+  answer prompt's prefix (KV cache reuse); `RETRIEVAL_MODE=vector` (−8s); qwen3.5:2b; fewer chunks.
+- C1 t3 answer misses "14 days per year" (correct but incomplete).
+- Checker is substring-based; M6 needs a proper answer-correctness judge.
+- Guardrails (injection, system-prompt leaks, out-of-scope) are only *in the prompt*, untested → M5.
+- Sessions are in memory; lost on restart.
+
 ## Session 1 (cont.) · 2026-11-12 · M3 Hybrid search + rerank
 
 ### Done

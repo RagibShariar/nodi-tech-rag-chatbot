@@ -1,16 +1,18 @@
 """Integration tests with the real bge-reranker-v2-m3 (skipped if PyTorch or the model isn't available)."""
 
+import importlib.util
+
 import pytest
 
 from src import config
 
 
 def _reranker_available() -> bool:
-    try:
-        import sentence_transformers  # noqa: F401  (fails if PyTorch can't load)
-        from huggingface_hub import try_to_load_from_cache
-    except (ImportError, OSError):
+    # Runs at collection time, even when these tests are deselected, so it must be cheap:
+    # check that the package is installed WITHOUT importing it (importing loads PyTorch, ~30s).
+    if importlib.util.find_spec("sentence_transformers") is None:
         return False
+    from huggingface_hub import try_to_load_from_cache
     # Only run if the model is already downloaded: tests must never trigger a 2.3 GB download.
     return isinstance(try_to_load_from_cache(config.RERANK_MODEL, "config.json"), str)
 
@@ -24,7 +26,10 @@ pytestmark = [
 @pytest.fixture(scope="module")
 def reranker():
     from src.retrieval.rerank import CrossEncoderReranker
-    return CrossEncoderReranker()
+    try:
+        return CrossEncoderReranker()
+    except OSError as e:  # e.g. PyTorch DLLs can't load (missing VC++ runtime on Windows)
+        pytest.skip(f"PyTorch could not load: {e}")
 
 
 def test_relevant_passage_scores_higher(reranker):

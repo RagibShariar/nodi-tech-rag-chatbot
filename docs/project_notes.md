@@ -21,7 +21,7 @@
 - [M1 · Ingestion](#m1--ingestion) ✅
 - [M2 · Vector search](#m2--vector-search) ✅
 - [M3 · Hybrid search + rerank](#m3--hybrid-search--rerank) ✅
-- [M4 · Chat](#m4--chat) ⏳
+- [M4 · Chat](#m4--chat) ✅
 - [M5 · Guardrails](#m5--guardrails) ⏳
 - [M6 · Evaluation](#m6--evaluation) ⏳
 - [Numbers at a glance](#numbers-at-a-glance)
@@ -69,10 +69,10 @@ data/ -> parse (md + PDF) -> chunk -> add context line           ✅ M1
       -> BM25 index                                              ✅ M3
 
 CHAT (প্রতিটা প্রশ্নে)
-user message -> rewrite follow-up into standalone question       ⏳ M4
+user message -> rewrite follow-up into standalone question       ✅ M4
   -> lexical search + vector search -> fuse (RRF) -> rerank      ✅ M3
-  -> prompt: system rules + chat history + fenced chunks         ⏳ M4/M5
-  -> LLM answer with [source] citations -> stream to UI          ⏳ M4
+  -> prompt: system rules + chat history + fenced chunks         ✅ M4 (attack-tested in M5 ⏳)
+  -> LLM answer with [source] citations -> stream to UI          ✅ M4
 ```
 
 **বাংলায়:** দুইটা আলাদা কাজ। **Indexing** হলো লাইব্রেরি সাজানো: বই এনে, তাকে তাকে রেখে,
@@ -247,6 +247,60 @@ much slower. So we **retrieve** many candidates fast, then **rerank** only the t
 **English:** Measuring where the seconds go, stage by stage, before optimizing.
 **বাংলায়:** অফিস যেতে দেরি হলে আগে দেখি কোন মোড়ে আটকে থাকি। পুরো রাস্তা না, শুধু ওই একটা
 সিগনাল (আমাদের ক্ষেত্রে reranker) ঠিক করলেই বেশিরভাগ সময় বাঁচে।
+
+### Prompt, messages and the system prompt *(M4)*
+**English:** A prompt is what we send the LLM: a list of messages with roles (`system`, `user`,
+`assistant`). The **system prompt** comes first and sets the rules for the whole conversation.
+**বাংলায়:** রেস্টুরেন্টে ওয়েটার রান্নাঘরে একটা স্লিপ পাঠায়। উপরে রান্নাঘরের নিয়ম লেখা ("ঝাল কম, তেল
+কম"): এটা system prompt। তারপর এই টেবিলের আগের অর্ডারগুলো (history), সবশেষে নতুন অর্ডার (প্রশ্ন)।
+
+### Context window *(M4)*
+**English:** The maximum number of tokens the model can read at once (we set 8,192). System prompt,
+history, documents, question and answer must all fit.
+**বাংলায়:** ক্লাসের হোয়াইটবোর্ড। জায়গা শেষ হলে পুরনো লেখা মুছতে হয়। এজন্যই শুধু শেষ ৬টা
+turn রাখি, পুরো ইতিহাস না।
+
+### Temperature and seed *(M4)*
+**English:** Temperature controls how random the word choices are (0.1 = almost always the most likely
+word). A fixed seed makes the remaining randomness repeatable: same prompt, same answer.
+**বাংলায়:** মেপে রান্না বনাম আন্দাজে রান্না। Temperature কম মানে প্রতিবার মাপমতো একই রেসিপি।
+Seed মানে তাস একই নিয়মে ফেটানো, তাই প্রতিবার একই হাত আসে।
+
+### Query rewriting *(M4)*
+**English:** Turning a follow-up ("Does it have SSO?") into a standalone question ("Does the Growth plan
+have SSO?") using the conversation, so retrieval knows what "it" means.
+**বাংলায়:** ফোনে কেউ বলল "ওটা কবে আসবে?"। আগের কথা মনে রেখে বুঝে নিই "ওটা" মানে কুরিয়ারের পার্সেল।
+সার্চকে এভাবে পুরো প্রশ্ন বানিয়ে দিতে হয়।
+
+### Streaming (NDJSON) *(M4)*
+**English:** Sending the answer piece by piece as it's generated instead of waiting for the end. NDJSON
+= one JSON object per line. Total time is the same; the first words appear sooner.
+**বাংলায়:** রেডিওতে ক্রিকেটের লাইভ ধারাভাষ্য বনাম পরের দিনের পত্রিকার রিপোর্ট। খেলা শেষ হতে
+একই সময় লাগে, কিন্তু লাইভে প্রতিটা বল সঙ্গে সঙ্গে শোনা যায়।
+
+### Prefill vs generation *(M4)*
+**English:** Before writing, the model reads the whole prompt (prefill: ~25 tokens/s on this CPU), then
+writes the answer (generation: ~7 tokens/s). With long prompts and short answers, prefill dominates.
+**বাংলায়:** পরীক্ষায় আগে প্রশ্নপত্র আর সংযুক্ত কাগজ পড়ে বোঝা (prefill), তারপর উত্তর লেখা
+(generation)। আমাদের ক্ষেত্রে কাগজ পড়তেই বেশি সময় যায়, লেখা ছোট।
+
+### KV cache *(M4)*
+**English:** Ollama keeps the work done on a prompt. If the next prompt starts with exactly the same
+text, that part isn't re-read. So stable parts go first (system prompt, history) and changing parts last.
+**বাংলায়:** প্রাইভেট টিউটরের কাছে আগের অধ্যায় বোঝা থাকলে আজ শুধু নতুন অধ্যায় পড়লেই হয়।
+তাই চেনা অংশ শুরুতে রাখি, নতুন অংশ শেষে।
+
+### XSS and escaping *(M4)*
+**English:** If text from the model or a document is inserted into the page as HTML, a `<script>` inside
+it would run. Escaping turns it into harmless visible text first.
+**বাংলায়:** "আগুন" লেখা কাগজ ফ্রেমে বাঁধিয়ে দেয়ালে টাঙালে ঘরে আগুন লাগে না। Escape করা মানে
+কোডকে শুধু লেখা বানিয়ে দেখানো, চালানো না।
+
+### Overfitting to the test set *(M4)*
+**English:** Tuning prompts or settings on the exact questions you evaluate with. The score goes up, but
+it no longer tells you how the system does on new questions.
+**বাংলায়:** প্রশ্ন ফাঁস হলে মুখস্থ করে পাস করা যায়, কিন্তু আসল জ্ঞান বোঝা যায় না। আমাদের মাত্র
+৩টা conversation, তাই ওগুলো দেখে prompt বদলাইনি।
 
 ---
 
@@ -917,7 +971,221 @@ file"; the full pipeline ranks it #1, and BM25 has it in its top 2.
 
 ## M4 · Chat
 
-⏳ Not started.
+**Goal:** a chatbot: retrieve the top 5 chunks, let a local Qwen write an answer only from them with
+`[source]` citations, stream it to a web page, handle follow-up questions, keep the last 6 turns.
+**লক্ষ্য:** খুঁজে আনা ৫টা টুকরা পড়ে Qwen যেন শুধু সেখান থেকেই উত্তর লেখে, সূত্রসহ, শব্দে শব্দে
+পেজে দেখায়, আর "এটার দাম কত?" ধরনের পরের প্রশ্নও বোঝে।
+**Status:** ✅ done · 8/9 key facts · 9/9 citations · ~1 min per answer on CPU · 104 tests · Spec: [specs/M4.md](specs/M4.md)
+
+![Chat page](images/m4_chat.png)
+
+### What we built
+
+| File | Job |
+|---|---|
+| `src/chat/llm.py` | Ollama `/api/chat` client: streams NDJSON, `think: false`, temperature/seed/num_ctx, speed stats. |
+| `src/chat/prompts.py` | System prompt (6 rules) + fenced `<document source section status>` + message order. |
+| `src/chat/rewrite.py` | Follow-up → standalone question (own prompt, one example, output cleaning, fallback). |
+| `src/chat/history.py` | Last 6 turns per session (1 turn = question + answer). |
+| `src/chat/engine.py` | rewrite → retrieve → prompt → stream; yields events; `create_engine()` wires the real parts. |
+| `src/api/app.py` + `static/index.html` | FastAPI (`/`, `/chat` NDJSON stream, `/reset`) + chat page. |
+| `scripts/run_conversations.py` | The 3 multi-turn tests: key-fact + citation checks, timing, saved answers. |
+
+### How it works
+
+```
+user message ─┬─ first turn? ─ yes ─────────────────────────────┐
+              └─ no → LLM: rewrite into standalone question      │   (9–13s)
+                                                                 ▼
+                         retrieve top 5 (M3: vector + BM25 → RRF → rerank)   (10–14s)
+                                                                 ▼
+          [system rules] + [last 6 turns] + [<documents>…</documents> + question]
+                                                                 ▼
+               LLM reads the prompt (prefill, 25–45s), then writes (3–15s)
+                                                                 ▼
+          NDJSON events → browser: rewrite · sources · token token token … · done
+```
+
+**সহজ বাংলায়, রেস্টুরেন্টের উদাহরণ:**
+1. **অর্ডার বোঝা (rewrite):** কাস্টমার বলল "ওটাই আরেকটা দিন"। ওয়েটার আগের অর্ডার মনে রেখে
+   লিখল "আরেকটা চিকেন বিরিয়ানি"।
+2. **ভাঁড়ার থেকে উপকরণ (retrieve):** ঠিক ৫টা উপকরণ আনা হলো।
+3. **স্লিপ (prompt):** উপরে রান্নাঘরের নিয়ম, তারপর এই টেবিলের আগের অর্ডার, শেষে উপকরণ আর নতুন অর্ডার।
+4. **রান্না আর পরিবেশন (stream):** প্রতিটা পদ তৈরি হওয়ামাত্র টেবিলে পাঠানো, পুরো খাবার শেষ
+   হওয়ার অপেক্ষা না করে।
+
+### Decisions and why
+
+| Decision | Why | Alternative rejected |
+|---|---|---|
+| `qwen3.5:4b` | Your choice; E3: 8/9 facts, 9/9 citations, handles "18 not 15". Tags verified in the registry. | 2b (not tested, by choice), 9b (6 GB, slower). |
+| `think: false` | Qwen's hidden reasoning tokens would cost many seconds on CPU. | Thinking on. |
+| `temperature 0.1` + seed | Factual and repeatable: two runs gave identical answers. | Default temperature. |
+| Stable prompt parts first | KV cache reuses an identical prefix. | Documents first. |
+| Send `content` only in `<document>` tags | Metadata is in the tag; the context line would cost ~1s/chunk of prefill. | Send `embed_text`. |
+| Separate rewrite prompt + example | A 4B model does one job at a time better. | Reuse the answer prompt. |
+| Did **not** tune prompts on the 6 test follow-ups | Only 3 test conversations: tuning on them would be overfitting. | Add examples mirroring C1 t3. |
+| History keeps the user's **original** words; retrieval uses the rewrite | The record shows what was said; search gets a full question. | Store rewrites. |
+| NDJSON events from FastAPI | Same idea as Ollama's stream; easy line-by-line parsing; sources and timing travel with the tokens. | Server-Sent Events, WebSockets (more machinery). |
+| Plain HTML + JS page, all text escaped | No build step; XSS-safe. | React (not needed for one page). |
+
+**বাংলায় মূল "কেন"গুলো:**
+- **৬টা test প্রশ্ন দেখে prompt বদলাইনি:** ফাঁস হওয়া প্রশ্ন মুখস্থ করলে নম্বর বাড়ে, জ্ঞান না।
+- **চেনা অংশ আগে:** টিউটরের কাছে আগের অধ্যায় বোঝা থাকলে শুধু নতুন অধ্যায় পড়তে হয়।
+- **History-তে ইউজারের নিজের কথা:** খাতায় লেখা থাকে কাস্টমার আসলে কী বলেছিল, ওয়েটারের ব্যাখ্যা না।
+
+### What the numbers taught us (E3)
+
+1. **Prefill dominates on CPU.** ~25 tokens/s, linear: every 100 prompt tokens ≈ 4 seconds. Writing the
+   answer is short. So the fastest lever is a *smaller prompt*, not a shorter answer.
+   **বাংলায়:** প্রশ্নপত্র পড়তেই সবচেয়ে বেশি সময় যায়, উত্তর লেখা ছোট।
+2. **8/9 key facts, 9/9 citations.** The miss: C1 t3 "And what about sick leave?" → correct ("cannot be
+   carried forward") but without the expected "14 days per year".
+3. **"18, never 15" works.** Both chunks were in the context; the model said 18 and called 15 "outdated and
+   superseded". The `status` label from M1 and prompt rule 4 did their job.
+4. **Deterministic.** Two separate runs gave the same answers, word for word.
+5. **~1 minute per answer.** First token avg 52.6s, total avg 59.8s (excluding two cache hits). Later
+   turns are slower because history grows the prompt.
+
+### Problems we hit and how we solved them
+
+1. **A measurement that looked too good (1,527 tok/s).** The second run of the same prompt was a KV-cache
+   hit. Fix: measure with a unique first line each time → real prefill ~25 tok/s. Later, two E3 turns were
+   also cache hits (same questions as the browser test); reported separately.
+   **বাংলায়:** একই প্রশ্ন দ্বিতীয়বার জিজ্ঞেস করলে উত্তর মুখস্থ থেকে আসে, তাই গতি মাপার সময় প্রতিবার নতুন প্রশ্ন দিতে হয়।
+2. **My checker failed a correct answer.** "15 days" was forbidden, but the right answer says "15 is
+   outdated" (system prompt rule 4; eval Q29 does the same). Changed the rule, disclosed it in E3, and
+   re-ran instead of re-labelling old results.
+3. **The new checker had its own bug, caught by its test:** the citation filename `..._SUPERSEDED.md`
+   counted as "calling 15 outdated". Fix: remove citations, match whole words.
+   **বাংলায়:** পরীক্ষকের নিজের ভুল ধরতে পরীক্ষকেরও পরীক্ষা লাগে।
+4. **Fast tests slowed from 10s to 44s.** The reranker test's skip-check imported PyTorch at collection
+   time. Fix: check with `importlib.util.find_spec` (no import); load PyTorch only in the fixture. Now 7s.
+5. **Qdrant local mode allows one process.** The API holds the folder, so scripts can't run while it's up.
+   Stop the server first (documented in CLAUDE.md).
+
+### How we know it works
+
+- **104 tests:** LLM client against a fake Ollama (`httpx.MockTransport`), prompt fencing/order, history
+  trimming, rewrite (skip/use/fallback/cleaning), engine event order + rewritten query used for retrieval,
+  API streaming/reset/validation/error event, checker rules, plus an **end-to-end test with real Qwen**
+  ("18 not 15" + handbook citation).
+- **Browser test** of the real page: streaming, citation chips, sources list, follow-up (screenshot above).
+- **E3**: all 9 conversation turns, answers saved to `artifacts/conversation_results.json` and read by eye.
+
+### Numbers
+
+| Metric | Value |
+|---|---|
+| Model | qwen3.5:4b (3.3 GB), CPU |
+| Prefill / generation | ~25 tok/s / ~7 tok/s |
+| Prompt size per answer | 590–1,100 tokens (grows with history) |
+| Conversations | key facts 8/9 · citations 9/9 |
+| Latency (uncached) | first token avg 52.6s · total avg 59.8s · max 80.4s |
+| Tests | 104 passed |
+
+### Known limitations · দুর্বলতা
+
+- **~1 minute per answer on this CPU.** Streaming makes it feel less empty, but it's slow.
+  *(লাইভ ধারাভাষ্য থাকলেও খেলা তো একই সময় নেয়।)*
+- Key-fact check is substring matching: crude. M6 needs a real correctness judge.
+- Guardrails exist only as prompt rules; not tested against attacks yet (M5).
+- Sessions live in memory; a restart forgets every conversation.
+- One server process at a time can use the Qdrant folder.
+
+### Questions I should be able to answer
+
+<details>
+<summary><b>Walk me through what happens when a user sends a message.</b></summary>
+
+**Answer:** If there's history, a short LLM call rewrites the message into a standalone question. That
+question goes through hybrid retrieval (vector + BM25, fused with RRF, reranked) to get the top 5 chunks.
+We build the prompt: system rules, the last 6 turns, then the 5 chunks fenced in `<document>` tags with
+source, section and status, then the question. Qwen streams the answer; FastAPI forwards each piece as an
+NDJSON event; the page renders it with citation chips and lists the sources. The turn is saved to history.
+
+**বুঝে নাও:** ওয়েটার অর্ডার বোঝে, ভাঁড়ার থেকে উপকরণ আনে, রান্নাঘরে স্লিপ দেয়, আর পদ তৈরি হওয়ামাত্র টেবিলে পাঠায়।
+</details>
+
+<details>
+<summary><b>How do you stop the model from making things up?</b></summary>
+
+**Answer:** Three layers so far. The system prompt says: answer only from the documents, cite each fact,
+say "I don't know" if it's not there. The documents are fenced and labelled, so the model sees what is
+data. And we measure: 9/9 answers cited a retrieved file, 8/9 had the key facts. It's not a guarantee: a
+4B model can still drift, which is why M5 tests out-of-scope and attack questions, and M6 judges every answer.
+
+**বুঝে নাও:** Open-book পরীক্ষার নিয়ম লিখে দেওয়া, বই আলাদা করে চিহ্নিত করা, আর খাতা দেখে যাচাই করা।
+নিয়ম দিলেই সবাই মানে না, তাই খাতা দেখা জরুরি।
+</details>
+
+<details>
+<summary><b>How do follow-up questions work?</b></summary>
+
+**Answer:** Retrieval can't resolve "it". So before searching, a separate short prompt asks the LLM to
+rewrite the last message as a standalone question using the conversation ("Does it have SSO?" → "Does the
+Growth plan have SSO?"). The output is cleaned (first line, no labels or quotes), with a fallback to the
+original message. It's skipped on the first turn. The answer prompt also includes the last 6 turns.
+
+**বুঝে নাও:** ফোনে "ওটা কবে আসবে?" শুনে আগের কথা মনে রেখে বোঝা "ওটা" মানে পার্সেল।
+</details>
+
+<details>
+<summary><b>Why is it slow, and what would you do about it?</b></summary>
+
+**Answer:** I measured it. On this 4-core CPU the model reads the prompt at ~25 tokens/s, so a
+~800-token prompt costs ~30s before the first word; retrieval adds ~10s and the rewrite ~10s. Options, to
+measure one at a time with the eval: make the rewrite prompt share the answer prompt's prefix so the KV
+cache helps; vector-only retrieval (−8s, MRR 0.935); fewer or shorter chunks; the 2B model; or a GPU,
+which is the real fix.
+
+**বুঝে নাও:** আগে মেপে দেখেছি সময় কোথায় যায়: প্রশ্নপত্র পড়তেই বেশি। তাই কাগজ ছোট করা বা দ্রুত পাঠক (GPU) দরকার।
+</details>
+
+<details>
+<summary><b>What is streaming, and how did you implement it end to end?</b></summary>
+
+**Answer:** Ollama sends NDJSON (one JSON per line) with each new piece of text. Our client yields those
+pieces from a Python generator; the engine wraps them as `token` events next to `rewrite`, `sources` and
+`done`; FastAPI's `StreamingResponse` sends each event as a line; the browser reads the response body with
+a stream reader, keeps any half-received line in a buffer, and re-renders the answer as tokens arrive.
+
+**বুঝে নাও:** লাইভ ধারাভাষ্য: প্রতিটা বল সঙ্গে সঙ্গে শোনা যায়, খেলা শেষের অপেক্ষা না করে।
+</details>
+
+<details>
+<summary><b>How does the bot handle the outdated 15-day leave policy?</b></summary>
+
+**Answer:** Retrieval returns both (the old policy even ranks first by similarity). Each chunk is fenced
+with `status="current"` or `status="superseded"`, and a system-prompt rule says to use the current one and
+call the old value outdated. The answer: "18 days… the previous policy stating 15 days is outdated and has
+been superseded", with both citations. Checked by a test and in E3.
+
+**বুঝে নাও:** নোটিশ বোর্ডে দুটো রুটিনই ঝুলছে, কিন্তু একটায় "বাতিল" সিল। লেখককে বলা আছে সিল দেখে বাছতে।
+</details>
+
+<details>
+<summary><b>You changed your checker after seeing results. Isn't that cheating?</b></summary>
+
+**Answer:** It would be if hidden. The old rule failed any answer containing "15 days", but my own prompt
+tells the model to mention the outdated value, and the eval's expected answer for the same question does
+too. So the check contradicted the spec. I changed it to "15 only if called outdated", documented the
+change and both scores in experiments.md, unit-tested both cases, and re-ran everything instead of
+re-labelling the old run.
+
+**বুঝে নাও:** উত্তরপত্রে ভুল থাকলে সংশোধন করা যায়, কিন্তু সবার সামনে, কারণসহ, আর সবার খাতা আবার দেখে।
+</details>
+
+<details>
+<summary><b>How did you make the chat page safe?</b></summary>
+
+**Answer:** Everything from the server (model output, document text, source names) is HTML-escaped before
+any formatting, so a `<script>` in a document shows as text and never runs (XSS). Only after escaping do I
+add my own formatting for bold, code and citation chips. Input is validated by Pydantic (non-empty, max
+2,000 characters).
+
+**বুঝে নাও:** "আগুন" লেখা কাগজ ফ্রেমে বাঁধালে আগুন লাগে না। আগে নিরাপদ করি, তারপর সাজাই।
+</details>
 
 ---
 
@@ -940,7 +1208,7 @@ file"; the full pipeline ranks it #1, and BM25 has it in its top 2.
 | M1 | 50 chunks from 12 files · 33 tests passing |
 | M2 | bge-m3 (chosen by score): hit@5 100% · all@5 34/36 · MRR 0.935 · 47 tests passing |
 | M3 | rerank pipeline: MRR 0.935 → 0.986 · all@5 34 → 36/36 · 11.4s/question on CPU · 73 tests |
-| M4 | — |
+| M4 | qwen3.5:4b chat: key facts 8/9 · citations 9/9 · ~1 min/answer on CPU · 104 tests |
 | M5 | — |
 | M6 | Retrieval hit rate: — (target ≥ 90%) · Answer correctness: — (target ≥ 85%) |
 

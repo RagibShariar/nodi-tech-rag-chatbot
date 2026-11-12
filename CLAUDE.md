@@ -156,7 +156,9 @@ Fill this in as we build. Keep it accurate.
 #               (hit@5, all@5, MRR, s/question; rerank mode ~11s/question on CPU, use python -u to see progress)
 # settings:     .env (see .env.example): RETRIEVAL_MODE, SEARCH_DEPTH, CANDIDATES, RRF_K, models
 # ollama:       %LOCALAPPDATA%\Programs\Ollama\ollama.exe  (server on localhost:11434)
-# run API:      (TBD in M4)
+# run API:      python -m uvicorn src.api.app:app --port 8000   (page at http://127.0.0.1:8000, ~20s startup)
+#               NOTE: holds the Qdrant local folder lock; stop it before running search/retrieval/conversation scripts
+# chats:        python -u -m scripts.run_conversations   (~9 min on CPU; saves artifacts/conversation_results.json)
 # run eval:     (TBD in M6)
 ```
 

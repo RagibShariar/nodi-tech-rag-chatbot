@@ -25,9 +25,11 @@ itself is unchanged).
 | M1 | Ingestion: parse markdown + PDF (with table), chunk by headings | ✅ Done |
 | M2 | Vector search: bge-m3 embeddings in Qdrant (hit@5 100%, MRR 0.935 on 36 questions) | ✅ Done |
 | M3 | Hybrid search: BM25 + RRF fusion + bge-reranker (MRR 0.935 → 0.986, all@5 34 → 36 of 36) | ✅ Done |
-| M4 | Chat: streaming answers with citations, follow-up questions | ⏳ |
+| M4 | Chat: qwen3.5:4b, streaming answers with citations, follow-ups (8/9 key facts, 9/9 cited) | ✅ Done |
 | M5 | Guardrails: "I don't know", prompt-injection defence | ⏳ |
 | M6 | Evaluation: 40-question eval set | ⏳ |
+
+![Chat page: answer with citations, follow-up question rewritten, sources listed](docs/images/m4_chat.png)
 
 ## Architecture
 
@@ -44,12 +46,15 @@ user message -> rewrite follow-up into standalone question
 
 ## Stack
 
-Python 3.12 · pdfplumber · Ollama (bge-m3 embeddings) · Qdrant (local mode) · rank_bm25 ·
-sentence-transformers (bge-reranker-v2-m3, CPU) · pytest. Planned: FastAPI · Qwen via Ollama.
+Python 3.12 · pdfplumber · Ollama (qwen3.5:4b chat, bge-m3 embeddings) · Qdrant (local mode) · rank_bm25 ·
+sentence-transformers (bge-reranker-v2-m3, CPU) · FastAPI + uvicorn · plain HTML/JS · pytest.
+
+Everything runs locally on CPU. On the development machine (4-core Ryzen, no GPU) an answer takes
+**about a minute** (first word after ~50s); see [docs/experiments.md](docs/experiments.md) (E3).
 
 ## Quick start (Windows / PowerShell)
 
-Prerequisites: [Ollama](https://ollama.com) running, then `ollama pull bge-m3`. On Windows, PyTorch (for
+Prerequisites: [Ollama](https://ollama.com) running, then `ollama pull bge-m3` and `ollama pull qwen3.5:4b`. On Windows, PyTorch (for
 the reranker) needs the Microsoft VC++ runtime: `winget install --id Microsoft.VCRedist.2015+.x64` (admin).
 The reranker model (~2.3 GB) downloads from Hugging Face on first use.
 
@@ -65,6 +70,9 @@ python -m src.retrieval.search "What does error ND-1042 mean?"             # ful
 python -m src.retrieval.search "What does error ND-1042 mean?" --mode bm25 # vector | bm25 | hybrid | rerank
 python -m scripts.retrieval_check --modes vector hybrid rerank            # hit@5 / all@5 / MRR per mode
 
+python -m uvicorn src.api.app:app --port 8000   # chat page at http://127.0.0.1:8000 (~20s startup)
+python -u -m scripts.run_conversations          # 3 multi-turn test chats, with checks and timing
+
 pytest -m "not integration"                   # fast tests (no Ollama needed)
 pytest                                        # all tests
 ```
@@ -78,10 +86,13 @@ pytest                                        # all tests
 ├── src/
 │   ├── config.py          # settings from .env with defaults
 │   ├── ingest/            # parse.py (md/PDF -> Document), chunk.py (Document -> Chunks), run.py (CLI)
-│   └── retrieval/         # embed (Ollama), vector_store (Qdrant), bm25, fusion (RRF), rerank,
-│                          # pipeline (all modes + debug trail), index + search (CLIs)
+│   ├── retrieval/         # embed (Ollama), vector_store (Qdrant), bm25, fusion (RRF), rerank,
+│   │                      # pipeline (all modes + debug trail), index + search (CLIs)
+│   ├── chat/              # llm (Ollama streaming), prompts, rewrite, history, engine
+│   └── api/               # FastAPI app + static/index.html (chat page)
 ├── scripts/
-│   └── retrieval_check.py # hit@5 / all@5 / MRR over the eval questions
+│   ├── retrieval_check.py # hit@5 / all@5 / MRR over the eval questions
+│   └── run_conversations.py # the 3 multi-turn tests, with key-fact + citation checks
 ├── tests/                 # mirrors src/ and scripts/
 ├── docs/
 │   ├── project_notes.md   # study guide: what/why/how per milestone, interview Q&A

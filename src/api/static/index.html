@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nodi Tech Assistant</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #6b7280; --border: #e3e6eb;
+    --accent: #1f6feb; --user: #e8f0fe; --cite-bg: #eef2f7; --cite: #34518a; --error: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1a1f27; --text: #e6e9ef; --muted: #9aa3b2; --border: #2a313c;
+      --accent: #58a6ff; --user: #1f2a3d; --cite-bg: #243042; --cite: #a9c4f5; --error: #f97066;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.55 system-ui, -apple-system, "Segoe UI", "Noto Sans Bengali", "Nirmala UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; min-height: 100vh; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 8px 0 16px; }
+  h1 { font-size: 18px; margin: 0; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  button { font: inherit; border: 1px solid var(--border); background: var(--panel); color: var(--text);
+           border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  #log { flex: 1; display: flex; flex-direction: column; gap: 14px; padding-bottom: 16px; }
+  .msg { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel);
+         overflow-wrap: anywhere; }
+  .msg.user { background: var(--user); align-self: flex-end; max-width: 85%; }
+  .status { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+  .cite { background: var(--cite-bg); color: var(--cite); border-radius: 4px; padding: 0 4px; font-size: 12.5px; }
+  code { background: var(--cite-bg); border-radius: 4px; padding: 0 4px; font-size: 13px; }
+  details { margin-top: 10px; font-size: 13px; color: var(--muted); }
+  details li { margin: 2px 0; }
+  .superseded { color: var(--error); }
+  .meta { margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .error { color: var(--error); }
+  form { display: flex; gap: 8px; position: sticky; bottom: 0; background: var(--bg); padding: 12px 0; }
+  textarea { flex: 1; font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--border);
+             border-radius: 8px; padding: 10px; resize: none; min-height: 44px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Nodi Tech Assistant</h1>
+      <p>Answers only from company documents, with sources. Runs locally on CPU: answers take about a minute.</p>
+    </div>
+    <button id="reset" type="button">New chat</button>
+  </header>
+  <div id="log"></div>
+  <form id="form">
+    <textarea id="input" rows="1" placeholder="Ask about HR, IT security, expenses or NodiDesk…" required></textarea>
+    <button class="primary" id="send" type="submit">Send</button>
+  </form>
+</main>
+<script>
+// One id per browser tab: the server keeps this conversation's last 6 turns.
+let sessionId = sessionStorage.getItem("sessionId") || crypto.randomUUID();
+sessionStorage.setItem("sessionId", sessionId);
+
+const log = document.getElementById("log");
+const form = document.getElementById("form");
+const input = document.getElementById("input");
+const send = document.getElementById("send");
+
+// SECURITY: everything from the server (model output, document text) is escaped first,
+// so a "<script>" inside a document is shown as text, never run. Then we add our own formatting.
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function render(text) {
+  return escapeHtml(text)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\[([^\[\]\s]+\.(?:md|pdf))\]/g, '<span class="cite">$1</span>')
+    .replace(/^\s*[*-]\s+/gm, "• ")
+    .replace(/\n/g, "<br>");
+}
+function addBubble(cls) {
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  log.appendChild(div);
+  return div;
+}
+
+async function ask(message) {
+  addBubble("user").textContent = message;
+  const bubble = addBubble("assistant");
+  const status = document.createElement("div"); status.className = "status";
+  const body = document.createElement("div");
+  bubble.append(status, body);
+
+  // Live timer: the first word can take ~50s on CPU, so show that work is happening.
+  const started = performance.now();
+  let phase = "Searching documents";
+  const tick = setInterval(() => {
+    status.textContent = `${phase}… ${Math.round((performance.now() - started) / 1000)}s`;
+  }, 250);
+
+  let answer = "";
+  try {
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: sessionId, message }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    // Read the NDJSON stream piece by piece. A network chunk can end mid-line, so keep the remainder.
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const ev = JSON.parse(line);
+        if (ev.type === "rewrite") {
+          if (ev.rewritten) phase = `Searching for “${ev.query}”`;
+        } else if (ev.type === "sources") {
+          phase = "Reading documents and writing the answer";
+          const det = document.createElement("details");
+          det.innerHTML = "<summary>Sources searched</summary><ol>" + ev.sources.map(s =>
+            `<li>${escapeHtml(s.source)} › ${escapeHtml(s.section)}` +
+            (s.status === "superseded" ? ' <span class="superseded">(superseded)</span>' : "") + "</li>"
+          ).join("") + "</ol>";
+          bubble.appendChild(det);
+        } else if (ev.type === "token") {
+          if (!answer) { clearInterval(tick); status.remove(); }
+          answer += ev.text;
+          body.innerHTML = render(answer);
+        } else if (ev.type === "done") {
+          const t = ev.timing;
+          const meta = document.createElement("div"); meta.className = "meta";
+          meta.textContent = `first word ${t.first_token_s}s · total ${t.total_s}s`;
+          bubble.appendChild(meta);
+        } else if (ev.type === "error") {
+          throw new Error(ev.message);
+        }
+      }
+      window.scrollTo(0, document.body.scrollHeight);
+    }
+  } catch (err) {
+    const e = document.createElement("div"); e.className = "error";
+    e.textContent = "Error: " + err.message;
+    bubble.appendChild(e);
+  } finally {
+    clearInterval(tick);
+    if (status.isConnected) status.remove();
+  }
+}
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const message = input.value.trim();
+  if (!message) return;
+  input.value = ""; send.disabled = true;
+  try { await ask(message); } finally { send.disabled = false; input.focus(); }
+});
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+});
+document.getElementById("reset").addEventListener("click", async () => {
+  await fetch("/reset", { method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ session_id: sessionId }) });
+  sessionId = crypto.randomUUID(); sessionStorage.setItem("sessionId", sessionId);
+  log.innerHTML = "";
+});
+</script>
+</body>
+</html>
