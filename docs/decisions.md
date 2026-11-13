@@ -100,3 +100,47 @@ and is widely supported by ML libraries we need later (Qdrant client, sentence-t
 
 - Spec said "BM25 alone ranks error codes #1"; that was stricter than the brief ("find the error codes
   file"). Now: full pipeline #1 (met: 0.784 vs 0.649), BM25 alone top 2 (met: #2).
+
+## 2026-11-13 · M6 · LLM-as-judge with qwen3.5:4b, validated two ways
+
+- Judge = qwen3.5:4b at temperature 0, rubric CORRECT / PARTIAL / INCORRECT, JSON reply with the reason first.
+  Only CORRECT counts toward the 85% target.
+- Rubric kept free of question-specific hints (no "18", "March", "HR"): hints would tune the judge to its
+  own test set. Enforced by a unit test.
+- Validated by a frozen sanity set (14 known verdicts, 14/14) and by agreement with human grades (pending).
+  Unreadable judge replies are ERROR, never parsed out of prose ("INCORRECT" contains "CORRECT").
+- Human grading sheet hides the judge's verdict (avoids anchoring).
+- Rejected: substring checks (wrong in M4/M5); qwen3.5:9b judge up front (6.1 GB download; only if agreement
+  with the human grades is poor).
+
+## 2026-11-13 · UI · Redesign to docs/ui-spec.md (deviations from the spec's API section)
+
+- Built per `docs/ui-spec.md` and the main screenshots: three columns, design tokens as CSS variables,
+  light/dark switch (OS default, choice saved in `localStorage`), numbered citation chips, sources panel
+  with status pills, dashed "I don't know" box, phone layout (menu + horizontally scrolling source chips).
+- **Stream format: SSE as the spec asks** (`event: delta` / `replace` / `done` / `error`), replacing NDJSON.
+- **Deviation: history stays on the server** (`session_id`), the page does not send `history`. If the
+  client sent history, anyone could forge earlier "assistant" turns and inject instructions that way.
+  The request takes `session_id`, `message`, `scope` (only "all" accepted until the filter exists).
+- **`answered: false` = the answer cites no retrieved document.** The system prompt requires a citation
+  per fact; refusals, "I don't know" and the out-of-scope reply cite nothing, in any language. Rejected:
+  matching refusal phrases (substring checks failed in M4/M5, and wouldn't work for Bangla).
+- Source status comes from chunk metadata (`status`), not the file name. The snippet is the retrieved
+  line with the most words in common with the answer (table rows shown with their column names).
+- Recent chats are kept in the browser (`localStorage`); the server's history is in memory, so after a
+  server restart an old chat can be re-read but the bot no longer remembers it.
+- Fonts from Google Fonts with system fallbacks (no download or dependency). Self-hosting is the
+  alternative if the page must work offline or make no outside requests.
+- Scope button rendered but disabled with a tooltip (metadata filter: stretch goal).
+- **Added on request (same day):** under every answer the M4 page's information is back (first word /
+  total time, the rewritten question, a collapsible "Sources searched" list of all 5 retrieved chunks).
+  The "Hybrid search + rerank" pill toggles a **retrieval debug panel** (docs/design/debug.png): standalone
+  question, BM25 and vector top 5 each, the fused + reranked top 5 with score bars and a Cited column,
+  timing and token counts. The two search lists come from `Retriever.retrieve(..., trace={})`: the caller
+  passes its own dict, so concurrent requests can't mix traces, and results are unchanged.
+  "Cited" is per file (the model cites file names, not chunks); a cited superseded file shows "Flagged".
+- **Thumbs up/down work:** `POST /feedback` appends one JSON line to `artifacts/feedback.jsonl` (gitignored;
+  question, answer, rating, cited files, time). Pressing the same thumb again sends "none". The logged text
+  comes from the page, so it is untrusted data for later review, not a source of truth.
+- No effect on answers: prompts, retrieval and the model are unchanged (the engine's `sources` event gained
+  a `content` field), so no eval re-run is needed for this change.

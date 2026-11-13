@@ -39,6 +39,27 @@ def test_trail_only_has_stages_that_ran(retriever):
     assert b.bm25_rank == 1 and b.vector_rank is None
 
 
+def test_trace_lists_each_search_and_does_not_change_results(retriever):
+    plain = retriever.retrieve(QUESTION, mode="rerank", k=5)
+    trace = {}
+    traced = retriever.retrieve(QUESTION, mode="rerank", k=5, trace=trace)
+
+    assert [r.chunk.chunk_id for r in traced] == [r.chunk.chunk_id for r in plain]
+    assert set(trace) == {"vector", "bm25"}
+    # BM25 only returns chunks sharing a word with the question, so there can be fewer than 5.
+    ranks = [h["rank"] for h in trace["bm25"]]
+    assert ranks == list(range(1, len(ranks) + 1)) and 0 < len(ranks) <= 5
+    assert len(trace["vector"]) == 5
+    top_bm25 = retriever.retrieve(QUESTION, mode="bm25", k=1)[0].chunk
+    assert (trace["bm25"][0]["source"], trace["bm25"][0]["section"]) == (top_bm25.source, top_bm25.section)
+
+
+def test_trace_only_has_searches_that_ran(retriever):
+    trace = {}
+    retriever.retrieve(QUESTION, mode="vector", k=5, trace=trace)
+    assert trace["bm25"] == [] and len(trace["vector"]) == 5
+
+
 def test_hybrid_order_is_rrf_of_vector_and_bm25(retriever):
     vector_ids = [r.chunk.chunk_id for r in retriever.retrieve(QUESTION, mode="vector", k=20)]
     bm25_ids = [r.chunk.chunk_id for r in retriever.retrieve(QUESTION, mode="bm25", k=20)]

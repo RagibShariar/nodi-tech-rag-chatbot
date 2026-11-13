@@ -34,6 +34,19 @@ def test_first_turn_event_order_and_no_rewrite_call(by_id):
     assert {"rewrite_s", "retrieve_s", "first_token_s", "answer_s", "total_s"} <= events[-1]["timing"].keys()
 
 
+def test_a_retriever_that_takes_a_trace_gets_one_and_it_is_sent_on(by_id):
+    def retrieve(query, trace=None):
+        trace["bm25"] = [{"source": "employee_handbook_v3.md", "section": "3. Leave", "rank": 1, "score": 9.1}]
+        trace["vector"] = []
+        return [Retrieved(by_id["employee_handbook_v3.md#3"], 0.9, vector_rank=2, bm25_rank=1, rrf_score=0.0325, rerank_score=0.8)]
+
+    events = list(ChatEngine(FakeLLM("18 days."), retrieve).ask("s1", "Annual leave?"))
+    sources = events[1]
+    assert sources["trace"]["bm25"][0]["rank"] == 1 and sources["trace"]["vector"] == []
+    first = sources["sources"][0]
+    assert (first["vector_rank"], first["bm25_rank"], first["rrf_score"], first["rerank_score"]) == (2, 1, 0.0325, 0.8)
+
+
 def test_follow_up_is_rewritten_and_used_for_retrieval(by_id):
     seen = []
     llm = FakeLLM("You get 18 days.", "Can I carry annual leave forward?", "Up to 5 days.")

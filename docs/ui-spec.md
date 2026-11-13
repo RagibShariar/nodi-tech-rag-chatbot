@@ -2,6 +2,11 @@
 
 Visual reference: screenshots in `docs/design/` (Main light, Main dark, Mobile, Debug). Where this file and a screenshot disagree, ask me.
 
+> **Implementation status (2026-11-13):** built in `src/api/static/index.html` + `src/api/app.py`, including
+> the debug panel (toggle: the search-mode pill) and thumbs feedback (`POST /feedback`). Not built: the scope
+> filter (button shown disabled). Deviation from section 5: history stays on the server (`session_id`), the
+> page does not send it; reasons and the final API shape are in `docs/decisions.md` (2026-11-13 · UI).
+
 **When to build this:** milestone M4 (Chat). Plain HTML + CSS + vanilla JS served by FastAPI. No framework unless I approve one in `docs/decisions.md`. The Debug panel is a stretch goal for after M3, not part of the first build.
 
 **All text in the screenshots is sample content.** Never hardcode answers, file names, scores or "12 documents". Everything comes from the API.

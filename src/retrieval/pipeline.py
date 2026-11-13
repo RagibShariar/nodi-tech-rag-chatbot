@@ -21,6 +21,7 @@ from src.retrieval.vector_store import EmbedFn, search
 
 Mode = Literal["vector", "bm25", "hybrid", "rerank"]
 MODES: tuple[Mode, ...] = ("vector", "bm25", "hybrid", "rerank")
+TRACE_DEPTH = 5  # how many hits of each search the debug trace keeps
 
 
 @dataclass(frozen=True)
@@ -54,7 +55,10 @@ class Retriever:
         self.candidates = candidates
         self.search_depth = search_depth
 
-    def retrieve(self, question: str, mode: Mode = "rerank", k: int = 5) -> list[Retrieved]:
+    def retrieve(self, question: str, mode: Mode = "rerank", k: int = 5, trace: dict | None = None) -> list[Retrieved]:
+        """trace: pass an empty dict to get each search's own top list (for the debug panel):
+        {"vector": [{"source", "section", "rank", "score"}, ...], "bm25": [...]}. The caller owns the dict,
+        so concurrent requests can't mix their traces."""
         # How deep each search goes is independent of how many candidates get reranked:
         # changing CANDIDATES must not change what vector/BM25 find.
         n = max(self.search_depth, self.candidates, k)
@@ -70,6 +74,11 @@ class Retriever:
 
         vector_rank = {cid: rank for rank, (cid, _) in enumerate(vector, start=1)}
         bm25_rank = {cid: rank for rank, (cid, _) in enumerate(bm25, start=1)}
+        if trace is not None:
+            for name, hits in (("vector", vector), ("bm25", bm25)):
+                trace[name] = [{"source": self.chunks[cid].source, "section": self.chunks[cid].section,
+                                "rank": rank, "score": round(score, 4)}
+                               for rank, (cid, score) in enumerate(hits[:TRACE_DEPTH], start=1)]
 
         # 2. Decide the order.
         rrf_scores: dict[str, float] = {}

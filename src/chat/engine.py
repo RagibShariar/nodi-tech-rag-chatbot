@@ -2,12 +2,15 @@
 
 `ask()` yields events, in this order:
   {"type": "rewrite", "query": ..., "rewritten": bool}
-  {"type": "sources", "sources": [{"source", "section", "status", "score"}, ...]}
+  {"type": "sources", "sources": [{"source", "section", "status", "score", "content",
+                                    "vector_rank", "bm25_rank", "rrf_score", "rerank_score"}, ...],
+   "trace": {"vector": [...], "bm25": [...]}}   (trace is empty if the retriever can't produce one)
   {"type": "token", "text": ...}            (many)
   {"type": "replace", "answer": ...}        (only if the leak guard stopped the answer)
   {"type": "done", "answer": ..., "timing": {...}}
 """
 
+import inspect
 import time
 from typing import Callable, Iterator
 
@@ -21,14 +24,22 @@ from src.retrieval.pipeline import Retrieved
 
 TOP_K = 5
 Event = dict
-RetrieveFn = Callable[[str], list[Retrieved]]
+RetrieveFn = Callable[..., list[Retrieved]]  # retrieve(query) or retrieve(query, trace=dict)
 LEAK_GUARD = LeakGuard(PROTECTED_TEXT)
+
+
+def _accepts_trace(fn: Callable) -> bool:
+    try:
+        return "trace" in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
 
 
 class ChatEngine:
     def __init__(self, llm: LLM, retrieve: RetrieveFn):
         self.llm = llm
         self.retrieve = retrieve
+        self._trace = _accepts_trace(retrieve)  # test fakes take only the query
         self.sessions: dict[str, ChatHistory] = {}  # in memory: lost on restart (fine for now)
 
     def history(self, session_id: str) -> ChatHistory:
@@ -49,11 +60,15 @@ class ChatEngine:
 
         # 2. Retrieve with the standalone question.
         t = time.perf_counter()
-        results = self.retrieve(query)
+        trace: dict = {}
+        results = self.retrieve(query, trace=trace) if self._trace else self.retrieve(query)
         timing["retrieve_s"] = round(time.perf_counter() - t, 2)
-        yield {"type": "sources", "sources": [
+        yield {"type": "sources", "trace": trace, "sources": [
             {"source": r.chunk.source, "section": r.chunk.section, "status": r.chunk.status,
-             "score": round(r.score, 4)} for r in results
+             "score": round(r.score, 4), "content": r.chunk.content,
+             "vector_rank": r.vector_rank, "bm25_rank": r.bm25_rank,
+             "rrf_score": None if r.rrf_score is None else round(r.rrf_score, 4),
+             "rerank_score": None if r.rerank_score is None else round(r.rerank_score, 4)} for r in results
         ]}
 
         # 3. Answer, streamed. History holds the user's ORIGINAL words; the prompt gets the standalone query.
@@ -107,4 +122,5 @@ def create_engine(mode: str = config.RETRIEVAL_MODE) -> ChatEngine:
         lambda text, kind: embed(text, kind),
         rerank_fn,
     )
-    return ChatEngine(OllamaChat(), lambda query: retriever.retrieve(query, mode=mode, k=TOP_K))
+    return ChatEngine(OllamaChat(),
+                      lambda query, trace=None: retriever.retrieve(query, mode=mode, k=TOP_K, trace=trace))

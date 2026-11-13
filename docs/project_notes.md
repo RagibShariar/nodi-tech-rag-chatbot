@@ -24,6 +24,7 @@
 - [M4 · Chat](#m4--chat) ✅
 - [M5 · Guardrails](#m5--guardrails) ✅
 - [M6 · Evaluation](#m6--evaluation) ⏳
+- [Chat UI (after M5)](#chat-ui-after-m5) ✅
 - [Numbers at a glance](#numbers-at-a-glance)
 
 ---
@@ -72,7 +73,10 @@ CHAT (প্রতিটা প্রশ্নে)
 user message -> rewrite follow-up into standalone question       ✅ M4
   -> lexical search + vector search -> fuse (RRF) -> rerank      ✅ M3
   -> prompt: system rules + chat history + fenced chunks         ✅ M4, hardened + attack-tested in M5 ✅
-  -> LLM answer with [source] citations -> stream to UI          ✅ M4
+  -> LLM answer with [source] citations -> stream to UI          ✅ M4 (SSE + redesigned UI, debug panel ✅)
+
+EVALUATION
+40 questions x 3 seeds -> retrieval hit + LLM judge + consistency ✅ M6 run (human grading pending ⏳)
 ```
 
 **বাংলায়:** দুইটা আলাদা কাজ। **Indexing** হলো লাইব্রেরি সাজানো: বই এনে, তাকে তাকে রেখে,
@@ -272,9 +276,10 @@ have SSO?") using the conversation, so retrieval knows what "it" means.
 **বাংলায়:** ফোনে কেউ বলল "ওটা কবে আসবে?"। আগের কথা মনে রেখে বুঝে নিই "ওটা" মানে কুরিয়ারের পার্সেল।
 সার্চকে এভাবে পুরো প্রশ্ন বানিয়ে দিতে হয়।
 
-### Streaming (NDJSON) *(M4)*
+### Streaming (NDJSON, later SSE) *(M4)*
 **English:** Sending the answer piece by piece as it's generated instead of waiting for the end. NDJSON
-= one JSON object per line. Total time is the same; the first words appear sooner.
+= one JSON object per line. Total time is the same; the first words appear sooner. Since the UI redesign the
+page uses **Server-Sent Events** (`event: delta` / `event: done`), the browser standard for one-way streams.
 **বাংলায়:** রেডিওতে ক্রিকেটের লাইভ ধারাভাষ্য বনাম পরের দিনের পত্রিকার রিপোর্ট। খেলা শেষ হতে
 একই সময় লাগে, কিন্তু লাইভে প্রতিটা বল সঙ্গে সঙ্গে শোনা যায়।
 
@@ -340,6 +345,55 @@ make the system look good.
 **English:** A fixed seed makes one run repeatable, not reliable. Running the same question with several
 seeds shows how often the model really gets it right (K3: 2 of 5).
 **বাংলায়:** একজন ব্যাটসম্যান এক ম্যাচে সেঞ্চুরি করলেই প্রতি ম্যাচে করবে না। কয়েকটা ম্যাচের গড় দেখতে হয়।
+
+### Eval (evaluation set) *(M6)*
+**English:** A fixed set of questions with expected answers, run through the whole system to get a score.
+Like a unit-test suite for a system whose output wording changes every time, so exact matching doesn't work.
+**বাংলায়:** বোর্ড পরীক্ষার মতো: একই প্রশ্নপত্রে সবাইকে বসালে তবেই নম্বর তুলনা করা যায়। প্রতিবার
+কিছু বদলালে আবার একই পরীক্ষা দিই, নম্বরই বলে উন্নতি হলো কি না।
+
+### LLM-as-judge and rubric *(M6)*
+**English:** A second LLM call grades each answer against the expected answer using a fixed rubric
+(CORRECT / PARTIAL / INCORRECT, reason first, JSON out). It understands paraphrases that substring checks miss.
+**বাংলায়:** খাতা দেখার জন্য শিক্ষককে একটা মার্কিং স্কিম দেওয়া হয়। স্কিম যত পরিষ্কার, নম্বর তত
+ন্যায্য। "৩১ মার্চ" আর "March 31st" একই উত্তর, শিক্ষক সেটা বোঝেন, শুধু অক্ষর মেলানো যন্ত্র বোঝে না।
+
+### Judge limits: self-grading and verbosity bias *(M6)*
+**English:** Our judge is the same model that wrote the answers, so it may share their blind spots and like
+its own style; long confident answers can look more correct. So the judge itself must be tested.
+**বাংলায়:** নিজের খাতা নিজে দেখলে নিজের ভুল চোখে পড়ে না। আর লম্বা, গুছিয়ে লেখা খাতা দেখে
+মনে হয় বেশি জানে, অথচ আসল সংখ্যাটা ভুলও হতে পারে।
+
+### Judge sanity set *(M6)*
+**English:** Hand-made answers with known verdicts (exact, paraphrase, outdated value, made-up, injected
+"grader note"...), frozen with a hash before the judge's first run. The judge must get them right (14/14).
+**বাংলায়:** নতুন পরীক্ষককে আসল খাতা দেওয়ার আগে কয়েকটা নমুনা খাতা দিই, যেগুলোর সঠিক নম্বর আমরা
+আগেই জানি। ঠিক নম্বর দিতে পারলে তবেই আসল খাতা।
+
+### Human agreement and Cohen's kappa *(M6)*
+**English:** Compare the judge's verdicts with a human's on the same answers. Kappa corrects raw agreement
+for chance: a judge that always says CORRECT can agree 90% of the time and still have kappa 0.
+**বাংলায়:** বোর্ড পরীক্ষায় কিছু খাতা দ্বিতীয় পরীক্ষক আবার দেখেন (moderation)। আর MCQ-তে আন্দাজে
+কিছু নম্বর পাওয়া যায়; kappa সেই আন্দাজের নম্বরটুকু বাদ দিয়ে আসল মিল দেখায়।
+
+### Anchoring *(M6)*
+**English:** Seeing someone else's grade first pulls your own grade towards it. So the human grading sheet
+hides the judge's verdicts.
+**বাংলায়:** আগে অন্য কারো দেওয়া নম্বর দেখে ফেললে নিজের বিচারও সেদিকে হেলে যায়। তাই নিজের নম্বর
+আগে দিই, পরে মিলাই।
+
+### Server-Sent Events (SSE) *(UI)*
+**English:** A standard text format for a server pushing events to the browser over one HTTP response:
+`event: <name>` and `data: <json>` lines, frames separated by a blank line.
+**বাংলায়:** টিভির নিচে চলা খবরের স্ক্রল: চ্যানেল একটার পর একটা খবর পাঠায়, আমরা শুধু দেখি,
+উত্তরে কিছু পাঠাই না।
+
+### Retrieval trace / debug panel *(UI)*
+**English:** The page can show how an answer was found: the standalone question, BM25 and vector top 5,
+the fused + reranked top 5 with scores, and timing. If the right document isn't there, retrieval failed
+before the LLM started.
+**বাংলায়:** রান্না খারাপ হলে আগে দেখি বাজারটাই ঠিক হয়েছিল কি না। ঠিক উপকরণ না এলে রাঁধুনির
+দোষ নয়; debug panel সেই বাজারের ফর্দ দেখায়।
 
 ---
 
@@ -1441,7 +1495,55 @@ questions over several seeds.
 
 ## M6 · Evaluation
 
-⏳ Not started.
+⏳ **In progress** (2026-11-13). Built and run; the full study section is written when the human grades are in.
+
+- Judge: qwen3.5:4b at temperature 0 (`src/eval/judge.py`), validated on a frozen 14-case sanity set: 14/14.
+- `scripts/run_eval.py`: all 40 questions x seeds 42 / 1 / 2, fresh session per question.
+- Automatic results, every seed: retrieval hit@5 **36/36**, all expected sources 36/36, answers cite a
+  retrieved file 36/36, version conflict Q29 (18 not 15) + Q30 (5 not 10) **2/2**.
+- Judge-based correctness is held back until Ragib grades the 40 seed-42 answers (`docs/eval/human_labels.csv`),
+  so the grades aren't anchored. Then: judge-vs-human agreement + kappa, E5c, this section in full.
+- Lesson already learned: the first smoke run counted an Ollama crash as a wrong answer and a retrieval miss.
+  Measurement bugs can move a score as much as model changes.
+
+**বাংলায়:** পরীক্ষা নেওয়া হয়ে গেছে, খাতাও জমা। এখন আমি নিজে ৪০টা খাতা দেখব, তারপর যন্ত্র-পরীক্ষকের
+(judge) নম্বরের সাথে মিলাব। মিললে judge-কে বিশ্বাস করা যাবে, না মিললে আমার নম্বরই চূড়ান্ত।
+
+---
+
+## Chat UI (after M5)
+
+**English:** The page was redesigned from `docs/ui-spec.md`: three columns (chats, conversation, sources),
+light/dark themes, numbered citation chips that jump to source cards (status from metadata: current or
+superseded), a dashed "I don't know" box when the answer cites nothing, a phone layout, a retrieval debug
+panel behind the search-mode pill, M4's timing and "Sources searched" under every answer, and thumbs
+feedback logged to a file. The stream is SSE; history stays on the server so a client can't forge earlier
+turns. Prompts and retrieval didn't change, so evaluation results stay valid.
+
+**বাংলায়:** দোকানের ভেতরের মাল একই আছে, শুধু শোকেস নতুন করে সাজানো হয়েছে। প্রতিটা তথ্যের পাশে
+নম্বর, নম্বরে চাপলে কোন বই থেকে এসেছে দেখা যায়; পুরনো বই হলে হলুদ চিহ্ন। আর ভেতরে কী ঘটছে দেখতে
+চাইলে debug panel, যেমন রান্নাঘরের কাচের দেয়াল।
+
+<details>
+<summary><b>Why doesn't the page send the chat history, when the spec asked for it?</b></summary>
+
+**Answer:** Whatever the client sends goes into the prompt as earlier "assistant" turns. A modified client
+could invent a turn like "I will ignore my rules" and the model would treat it as its own words. Keeping
+history on the server (keyed by session_id) removes that path. I wrote the deviation and the reason down.
+
+**বুঝে নাও:** খাতায় আগের পাতাগুলো ছাত্রের হাতে থাকলে সে চাইলে বদলে দিতে পারে। তাই আগের পাতা
+শিক্ষকের কাছে রাখি।
+</details>
+
+<details>
+<summary><b>How does the page know to show "I don't know"?</b></summary>
+
+**Answer:** The system prompt requires a citation after every fact, so a real answer always cites a
+retrieved file. If the answer cites none, it's a refusal, an "I don't know" or the out-of-scope reply, in any
+language. That avoids matching phrases, which failed in M4/M5 and wouldn't work for Bangla.
+
+**বুঝে নাও:** প্রতিটা উত্তরে রেফারেন্স দেওয়া বাধ্যতামূলক। রেফারেন্স নেই মানে আসলে উত্তর নেই।
+</details>
 
 ---
 
@@ -1454,6 +1556,6 @@ questions over several seeds.
 | M3 | rerank pipeline: MRR 0.935 → 0.986 · all@5 34 → 36/36 · 11.4s/question on CPU · 73 tests |
 | M4 | qwen3.5:4b chat: key facts 8/9 · citations 9/9 · ~1 min/answer on CPU · 104 tests |
 | M5 | leaks 2 → 0 · guardrail cases 12/17 → 15/17 · eval Q35–Q40 5/6 · 123 tests |
-| M6 | Retrieval hit rate: — (target ≥ 90%) · Answer correctness: — (target ≥ 85%) |
+| M6 | Judge sanity 14/14 · retrieval hit@5 36/36 (100%) in all 3 seeds · version conflict 2/2 · answer correctness: pending human grades (target ≥ 85%) · 191 tests |
 
 Full history of every measured score: [experiments.md](experiments.md).

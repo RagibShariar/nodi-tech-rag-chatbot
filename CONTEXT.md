@@ -4,7 +4,7 @@
 > history do **not** move between machines; everything needed to continue is in this repo.
 > Update the "Current state" and "Next step" sections at the end of every session.
 
-Last updated: 2026-11-13 (M6 built and run, waiting for the human grades; home laptop)
+Last updated: 2026-11-13 (M6 built and run, waiting for the human grades; UI redesigned + debug panel + feedback; home laptop)
 
 ---
 
@@ -19,7 +19,7 @@ Last updated: 2026-11-13 (M6 built and run, waiting for the human grades; home l
 | M5 Guardrails | ✅ | `f021e77` | leaks 2 → 0, 15/17 guardrail cases, eval Q35–Q40 5/6 |
 | **M6 Evaluation** | ⏳ **in progress** | not committed yet | judge sanity 14/14; 40 q x 3 seeds run; hit@5 36/36; **waiting for human grades** |
 
-Tests: 170 passing (`pytest`), 163 fast (`pytest -m "not integration"`).
+Tests: 191 passing (`pytest`), 184 fast (`pytest -m "not integration"`).
 
 Where the details are:
 - [docs/project_notes.md](docs/project_notes.md): study guide per milestone (bilingual), interview Q&A
@@ -52,7 +52,11 @@ After grading:
 3. E5c in experiments.md; then end-of-milestone docs: project_notes M6 (bilingual) + project summary,
    decisions.md, README status, PROGRESS, this file. Then wait for "commit and push".
 
-Note: the work of 2026-11-13 is **not committed** yet. To grade on another machine, commit and push first.
+M6 work is committed (`44fbf8f`). After it, the chat UI was redesigned to `docs/ui-spec.md` (SSE, numbered
+citations, sources panel, themes, phone layout; decisions.md 2026-11-13 UI). Prompts/retrieval unchanged,
+so the eval results stay valid. Then (same day): retrieval debug panel (toggle = the search-mode pill),
+per-answer timing + "Sources searched", working thumbs (`POST /feedback` -> `artifacts/feedback.jsonl`).
+Not built: the scope (metadata) filter.
 
 ## 3. Set up a new machine (e.g. the home laptop)
 
@@ -135,6 +139,9 @@ should be close but can vary slightly with hardware/library versions; re-run bef
 
 ## 5. Gotchas
 
+- **Running tests while the server is up:** the integration tests open Qdrant too and fail with "already
+  accessed by another instance". Stop the server, or copy `artifacts/qdrant` (without `.lock`) to another
+  folder and run with `QDRANT_PATH=<that folder>`; delete the copy afterwards.
 - **Qdrant local mode = one process at a time.** While the API server runs, `search`, `retrieval_check`,
   `run_conversations`, `run_guardrails` can't open the index. Stop the server first.
 - **Slow on CPU:** retrieval ~10s (reranker), prompt reading ~25 tokens/s, ~1 min per answer. Run long scripts

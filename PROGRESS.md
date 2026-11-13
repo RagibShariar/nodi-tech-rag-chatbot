@@ -13,18 +13,28 @@
   review sheet without verdicts, `--compare-human` (agreement, kappa). Crash handling after a smoke run
   showed an Ollama crash graded as a bot failure.
 - Full run 3 seeds: retrieval 36/36, citations 36/36, version conflict 2/2 in every seed (E5b).
-- 170 tests (163 fast).
+- 191 tests (184 fast).
+
+- UI redesign to `docs/ui-spec.md`: SSE stream, numbered citation chips + sources panel (status from
+  metadata, best-matching snippet), "I don't know" box (= no citation), light/dark, phone layout, recent
+  chats in localStorage, `/info` endpoint. Checked with headless Edge screenshots (light, dark, phone, tablet).
+- Retrieval debug panel (BM25 / vector lists via a caller-owned `trace` dict, rerank score bars, Cited,
+  timing), M4-style info under each answer, working thumbs logged to `artifacts/feedback.jsonl`.
 
 ### Concepts covered
 - Evals vs unit tests; separate retrieval and answer metrics; why substring checks fail.
 - LLM-as-judge, rubric, reason-before-verdict; limits: self-grading, leniency, verbosity, injection.
 - Testing the judge: frozen sanity set; human agreement; Cohen's kappa (agreement beyond chance).
 - Anchoring: grade before seeing the judge. Measurement bugs (an infra crash counted as a wrong answer).
+- UI: Server-Sent Events; why chat history stays on the server (forged turns = injection); citations as
+  evidence links; a caller-owned trace dict for debugging without shared state.
 
 ### Open questions / things to watch
 - **Human grades pending** (`docs/eval/human_labels.csv`); then judge-vs-human comparison and E5c.
 - Self-grading bias untested until that comparison.
 - Timings on the laptop vary with heat and other load (6.3s to 11.8s average per answer).
+- "Cited" in the debug panel is per file: the model cites file names, not chunks.
+- Not built yet: the scope (metadata) filter button; feedback is logged but not analysed.
 
 ## Session 1 (cont.) · 2026-11-12 · M5 Guardrails
 
