@@ -236,3 +236,70 @@ repeatable, not reliable. Evaluate sensitive questions over several seeds.
 
 **Final decision:** keep defences 1–3 and rule 7; no relevance gate; no contacts directory.
 Known limitations: Q35 HR suggestion; K3 (Bangla two-price answer) unreliable.
+
+---
+
+## E5 · 2026-11-13 · M6: evaluation (all 40 questions) — in progress
+
+Machine: **home laptop**, Intel i5-12500H, 15.7 GB RAM, NVIDIA RTX 3050 Laptop GPU (Ollama runs the models
+on the GPU; the reranker runs on CPU, `torch 2.15.0+cpu`). Timings here are **not comparable** with E1–E4
+(office PC, CPU only).
+
+### Judge sanity set (frozen before the judge's first run)
+
+`scripts/judge_sanity.json`: 14 hand-made (question, expected, answer) triples with a known verdict
+(6 CORRECT, 2 PARTIAL, 6 INCORRECT): exact match, paraphrase ("March 31st"), outdated 15 days, 18 days
+mentioning the old 15, missing key fact, made-up answer, empty answer, answer to a different question,
+two correct refusals, refusal without the HR suggestion, injected "grader note", verbose wrong answer,
+Bangla answer. Questions and expected answers are copied from `eval/eval_questions.csv`.
+SHA-256 (LF, as stored in git): `917cb2ec647b8bc97ada2cc0b55fb14ad907cb1020b505968dedcecf0dce9dfa`.
+A judge that always says CORRECT would score 6/14, so the set can tell a lenient judge from a good one.
+
+### E5a · judge on the sanity set (qwen3.5:4b, temperature 0)
+
+Command: `python -u -m scripts.judge_sanity` (refuses to run if the file's hash changed; it hadn't).
+Rubric in `src/eval/judge.py`, written before this run and kept free of question-specific hints.
+
+| | judge CORRECT | judge PARTIAL | judge INCORRECT | ERROR |
+|---|---|---|---|---|
+| expected CORRECT (6) | 6 | 0 | 0 | 0 |
+| expected PARTIAL (2) | 0 | 2 | 0 | 0 |
+| expected INCORRECT (6) | 0 | 0 | 6 | 0 |
+
+**14/14 agree, 0 too lenient, 0 too strict, 0 unreadable replies.** It held on the paraphrase, the outdated
+15 days, 18-with-15-marked-outdated, the injected "grader note" and the verbose wrong answer. The reasons
+are sensible (read all 14).
+
+Latency (home laptop, GPU): 1.9–3.4s per judgement, first call 13.7s (model load); avg 3.5s.
+
+What this does **not** show: these answers were written by hand to be clear-cut, and not by qwen3.5:4b, so
+self-grading bias and messy real answers are untested. That is what the judge-vs-human comparison on the
+40 real answers is for.
+
+### E5b · full eval, 40 questions x 3 seeds (42, 1, 2): automatic metrics
+
+Command: `python -u -m scripts.run_eval --seeds 42 1 2` (~27 min on the home laptop). Each question in a fresh
+session, retrieval mode rerank, chat qwen3.5:4b at temperature 0.1, judge qwen3.5:4b at temperature 0.
+Results: `docs/eval/results/eval_seed{42,1,2}.json` (copied from `artifacts/`).
+
+| Metric (automatic, no judge) | seed 42 | seed 1 | seed 2 | Target |
+|---|---|---|---|---|
+| Retrieval hit@5 (36 in-scope questions) | 36/36 | 36/36 | 36/36 | ≥ 90%: **met** |
+| All expected sources in top 5 | 36/36 | 36/36 | 36/36 | |
+| Answer cites a retrieved file | 36/36 | 36/36 | 36/36 | |
+| Version check Q29 (18 not 15) + Q30 (5 not 10) | 2/2 | 2/2 | 2/2 | all: **met** |
+| Bot crashes / retries | 0 / 0 | 0 / 0 | 0 / 0 | |
+| Avg answer time, home laptop | 6.3s | 11.8s | 9.7s | |
+
+**Judge-based numbers (answer correctness, Q35–Q40) are deliberately not written here yet:** the human
+grades the seed-42 answers first, without seeing the judge's verdicts, so the grades are independent.
+They are added in E5c together with the judge-vs-human comparison.
+
+Disclosures:
+- **One verdict was seen before grading:** a progress message during the run mentioned "Q12 PARTIAL".
+- **Timing is not clean:** unit tests and other commands ran on the same laptop during seed 42, and a laptop
+  GPU slows down when hot. The spread (6.3s to 11.8s average) is machine noise, not a model difference.
+- Smoke runs before the full run (`--only Q15 Q29 Q33 Q38`) found an Ollama crash on the first chat-model
+  load (CUDA "shared object initialization failed", HTTP 500) that the first version of the script graded as
+  INCORRECT + retrieval miss. Fixed before the full run: warm-up call, one retry per crash (counted and
+  reported), crashes are ERROR and never sent to the judge, sources kept even when the answer crashes.

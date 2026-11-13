@@ -43,8 +43,13 @@ class Stats:
 
 
 class OllamaChat:
-    def __init__(self, model: str | None = None, client: httpx.Client | None = None):
+    def __init__(self, model: str | None = None, client: httpx.Client | None = None,
+                 temperature: float | None = None, seed: int | None = None):
         self.model = model or config.CHAT_MODEL
+        # None = use the .env setting. The eval overrides them: the judge runs at temperature 0,
+        # and the bot is run with several seeds to measure how stable its answers are.
+        self.temperature = config.LLM_TEMPERATURE if temperature is None else temperature
+        self.seed = config.LLM_SEED if seed is None else seed
         # On CPU the model may read the prompt for a minute before the first byte arrives,
         # so the read timeout (time between two chunks) must be generous.
         self.client = client or httpx.Client(timeout=httpx.Timeout(10.0, read=300.0))
@@ -57,8 +62,8 @@ class OllamaChat:
             "stream": True,
             "think": False,  # Qwen can "think out loud" first: many hidden tokens = many seconds on CPU
             "options": {
-                "temperature": config.LLM_TEMPERATURE,
-                "seed": config.LLM_SEED,
+                "temperature": self.temperature,
+                "seed": self.seed,
                 "num_ctx": config.NUM_CTX,
             },
         }

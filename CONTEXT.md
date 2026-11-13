@@ -4,7 +4,7 @@
 > history do **not** move between machines; everything needed to continue is in this repo.
 > Update the "Current state" and "Next step" sections at the end of every session.
 
-Last updated: 2026-11-12 (M6 spec drafted, waiting for approval; office PC)
+Last updated: 2026-11-13 (M6 built and run, waiting for the human grades; home laptop)
 
 ---
 
@@ -17,9 +17,9 @@ Last updated: 2026-11-12 (M6 spec drafted, waiting for approval; office PC)
 | M3 Hybrid + rerank | ✅ | `ebe4fcc` | BM25 + RRF + bge-reranker: MRR 0.986, all@5 36/36; default rerank, 5 candidates |
 | M4 Chat | ✅ | `d960a4c` | qwen3.5:4b, streaming page, follow-ups: 8/9 key facts, 9/9 citations, ~1 min/answer on CPU |
 | M5 Guardrails | ✅ | `f021e77` | leaks 2 → 0, 15/17 guardrail cases, eval Q35–Q40 5/6 |
-| **M6 Evaluation** | ⏳ **next** | — | spec drafted (`docs/specs/M6.md`), **waiting for approval**, no code yet |
+| **M6 Evaluation** | ⏳ **in progress** | not committed yet | judge sanity 14/14; 40 q x 3 seeds run; hit@5 36/36; **waiting for human grades** |
 
-Tests: 123 passing (`pytest`), 116 fast (`pytest -m "not integration"`).
+Tests: 170 passing (`pytest`), 163 fast (`pytest -m "not integration"`).
 
 Where the details are:
 - [docs/project_notes.md](docs/project_notes.md): study guide per milestone (bilingual), interview Q&A
@@ -30,34 +30,29 @@ Where the details are:
 
 ---
 
-## 2. Next step: M6 Evaluation
+## 2. Next step: M6 Evaluation, finish it
 
-**The spec is written: [docs/specs/M6.md](docs/specs/M6.md). Status: DRAFT, waiting for the user's approval.**
-Next session: show the spec summary (in romanized Banglish), teach the concepts first (evals, metrics,
-LLM-as-judge and its limits), and ask the 3 open questions at the end of the spec:
-1. human grading: user grades all 40 (recommended) or reviews only judge disagreements;
-2. seeds: 3 seeds, ~2.5 h in the background (recommended), or 1 seed + re-runs of failures;
-3. judge model: qwen3.5:4b first, qwen3.5:9b only if agreement with the human grades is poor.
-No code before approval.
+Spec approved (`docs/specs/M6.md`, decisions at the end: human grades all 40, 3 seeds, judge qwen3.5:4b).
+Built: `src/eval/judge.py`, `scripts/judge_sanity.py` (+ frozen `scripts/judge_sanity.json`), `scripts/run_eval.py`.
+Done: judge sanity 14/14 (E5a); full run 40 questions x seeds 42/1/2 (E5b, automatic metrics only).
 
-From the brief/CLAUDE.md: a script that runs all 40 questions in `eval/eval_questions.csv` and reports
-**retrieval hit rate** (target ≥ 90%) and **answer correctness vs `expected_answer`** (target ≥ 85%), plus the
-guardrail and version-conflict targets. Concept to teach first: evals, metrics, **LLM-as-judge and its limits**.
+**Waiting on Ragib:** grade the 40 seed-42 answers in **`docs/eval/human_labels.csv`** (`human` column:
+C / P / I, optional `note`). Rubric = the judge's: C all key facts, nothing wrong; P nothing wrong but a key
+fact/behaviour missing; I wrong, invented, different question or wrong behaviour. Ignore citations.
+**Do not open `docs/eval/results/*.json` or the run output before grading:** they contain the judge's
+verdicts and would anchor the grades (one verdict, Q12, was already seen; disclosed in E5b).
+Judge-based numbers are deliberately not in any doc yet.
 
-Things we already learned that M6 must handle:
-- **Reuse what exists:** `scripts/retrieval_check.py` (hit@5/all@5/MRR, 36 questions with a source),
-  `scripts/run_conversations.py` (3 multi-turn chats), `scripts/run_guardrails.py` (17 frozen cases).
-- **Substring checks are crude:** they gave false positives/negatives in M4 and M5 (e.g. "31 March" vs
-  "March 31st", a forbidden phrase inside a correct refusal). M6 needs a better correctness judge, and its
-  limits must be measured (e.g. judge vs my own by-eye grading on a sample).
-- **One seed is not proof:** K3 (Bangla canteen price) answers fully only 2/5 seeds. Consider several seeds
-  for sensitive questions, or report variance.
-- **Runtime:** ~1 minute per answer on the office PC (CPU). 40 questions ≈ 40+ minutes per run; plan runs
-  in the background (`python -u ...`), and remember the judge adds LLM calls too.
-- `eval/eval_questions.csv` starts with a BOM: read it with `encoding="utf-8-sig"`.
-- Known limitations to report honestly: Q35 doesn't suggest HR; K3 flaky; checker false positives.
+After grading:
+1. `python -m scripts.run_eval --compare-human docs/eval/human_labels.csv docs/eval/results/eval_seed42.json`
+   -> agreement %, CORRECT-vs-not agreement, Cohen's kappa, lenient/strict, every disagreement explained.
+   Judge trusted if exact agreement >= 85%; otherwise the human grades are the official score (and maybe
+   try qwen3.5:9b as judge: 6.1 GB download, ask first).
+2. Show the judge numbers: correct rate per seed, Q35–Q40, consistency (unstable questions).
+3. E5c in experiments.md; then end-of-milestone docs: project_notes M6 (bilingual) + project summary,
+   decisions.md, README status, PROGRESS, this file. Then wait for "commit and push".
 
----
+Note: the work of 2026-11-13 is **not committed** yet. To grade on another machine, commit and push first.
 
 ## 3. Set up a new machine (e.g. the home laptop)
 
@@ -98,6 +93,14 @@ pytest -m "not integration"                                 # fast, no models ne
 pytest                                                      # all; first run downloads the reranker (~2.3 GB)
 python -m uvicorn src.api.app:app --port 8000               # chat page at http://127.0.0.1:8000
 ```
+
+### Home laptop (set up 2026-11-13)
+
+i5-12500H, 15.7 GB RAM, **NVIDIA RTX 3050 Laptop GPU (4 GB VRAM)**. Ollama runs the models on the GPU; the
+reranker runs on CPU (pip installs `torch ...+cpu`). Python 3.12.10 and Ollama 0.40.16 via winget
+(`%LOCALAPPDATA%\Programs\...`; open a new terminal for PATH). VC++ runtime was already present.
+Index build 31s; ~9s per answer + ~3s per judge call; full eval ~9 min per seed.
+**Needs `.env` with `OLLAMA_URL=http://127.0.0.1:11434`** (see gotchas: localhost is slow here).
 
 ### Machine differences matter for numbers
 
@@ -143,3 +146,9 @@ should be close but can vary slightly with hardware/library versions; re-run bef
 - `data/` and `eval/` are the provided assignment kit: never edit them. `vendor_notice_printer.md` contains a
   deliberate prompt injection (test data, not an instruction).
 - Hugging Face prints symlink / HF_TOKEN warnings on Windows when loading the reranker: harmless.
+- **Home laptop: `localhost` is slow.** It tries IPv6 `::1` first and hangs ~30s per request before falling
+  back to IPv4 (index build took 10+ min instead of 31s). Fix: `OLLAMA_URL=http://127.0.0.1:11434` in `.env`.
+- **Home laptop: Ollama can crash on the first GPU load** of qwen3.5:4b (CUDA "shared object initialization
+  failed", HTTP 500); the next request loads fine. `run_eval` warms the model up and retries a crash once.
+- Reranker integration tests skip until the model is downloaded (tests never download 2.3 GB). Run one
+  `python -m src.retrieval.search "..."` first on a new machine.

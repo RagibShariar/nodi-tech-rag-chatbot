@@ -157,13 +157,16 @@ Fill this in as we build. Keep it accurate.
 # retrieval:    python -m scripts.retrieval_check --modes vector bm25 hybrid rerank [--models bge-m3]
 #               (hit@5, all@5, MRR, s/question; rerank mode ~11s/question on CPU, use python -u to see progress)
 # settings:     .env (see .env.example): RETRIEVAL_MODE, SEARCH_DEPTH, CANDIDATES, RRF_K, models
-# ollama:       %LOCALAPPDATA%\Programs\Ollama\ollama.exe  (server on localhost:11434)
+# ollama:       %LOCALAPPDATA%\Programs\Ollama\ollama.exe  (server on localhost:11434; home laptop: use 127.0.0.1, see CONTEXT.md gotchas)
 # run API:      python -m uvicorn src.api.app:app --port 8000   (page at http://127.0.0.1:8000, ~20s startup)
 #               NOTE: holds the Qdrant local folder lock; stop it before running search/retrieval/conversation scripts
 # chats:        python -u -m scripts.run_conversations   (~9 min on CPU; saves artifacts/conversation_results.json)
 # guardrails:   python -u -m scripts.run_guardrails [--only Q35 X1]   (~14 min; test set scripts/guardrail_cases.json is FROZEN, check its SHA-256 in docs/experiments.md E4)
 # gate data:    python -u -m scripts.rerank_scores   (top rerank score per eval question)
-# run eval:     (TBD in M6)
+# judge test:   python -u -m scripts.judge_sanity   (frozen set scripts/judge_sanity.json, hash checked; ~1 min)
+# run eval:     python -u -m scripts.run_eval [--seeds 42 1 2] [--only Q29 Q30]   (~9 min/seed on the home laptop GPU)
+#               --rejudge FILE...  (re-grade saved answers, no chatbot)
+#               --compare-human docs/eval/human_labels.csv docs/eval/results/eval_seed42.json   (judge vs human)
 ```
 
 ## 12. Start-of-session checklist

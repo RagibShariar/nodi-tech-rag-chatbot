@@ -1,5 +1,31 @@
 # Progress
 
+## Session 2 · 2026-11-13 · M6 Evaluation (home laptop)
+
+### Done
+- Set up the home laptop (Python, Ollama, models, venv, index); all 123 existing tests pass there.
+  Found and fixed (in `.env`) a 30s-per-request `localhost` IPv6 delay.
+- M6 spec approved; decisions: human grades all 40, 3 seeds, judge qwen3.5:4b.
+- `src/eval/judge.py`: rubric (no question-specific hints), fenced answer, strict JSON parser (ERROR, never
+  guessed). `OllamaChat` takes optional temperature/seed.
+- Judge sanity set (14 cases) frozen before use; judge 14/14 (E5a).
+- `scripts/run_eval.py`: 40 questions x seeds, automatic checks, judge, consistency, `--rejudge`,
+  review sheet without verdicts, `--compare-human` (agreement, kappa). Crash handling after a smoke run
+  showed an Ollama crash graded as a bot failure.
+- Full run 3 seeds: retrieval 36/36, citations 36/36, version conflict 2/2 in every seed (E5b).
+- 170 tests (163 fast).
+
+### Concepts covered
+- Evals vs unit tests; separate retrieval and answer metrics; why substring checks fail.
+- LLM-as-judge, rubric, reason-before-verdict; limits: self-grading, leniency, verbosity, injection.
+- Testing the judge: frozen sanity set; human agreement; Cohen's kappa (agreement beyond chance).
+- Anchoring: grade before seeing the judge. Measurement bugs (an infra crash counted as a wrong answer).
+
+### Open questions / things to watch
+- **Human grades pending** (`docs/eval/human_labels.csv`); then judge-vs-human comparison and E5c.
+- Self-grading bias untested until that comparison.
+- Timings on the laptop vary with heat and other load (6.3s to 11.8s average per answer).
+
 ## Session 1 (cont.) · 2026-11-12 · M5 Guardrails
 
 ### Done

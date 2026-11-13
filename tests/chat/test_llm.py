@@ -47,6 +47,19 @@ def test_sends_streaming_no_thinking_and_options():
     assert {"temperature", "seed", "num_ctx"} <= payload["options"].keys()
 
 
+def test_temperature_and_seed_default_to_config_and_can_be_overridden():
+    from src import config
+    sent = []
+    body = _ndjson({"message": {"content": "ok"}, "done": True})
+    OllamaChat(client=_fake_ollama(body, sent)).complete([])
+    OllamaChat(client=_fake_ollama(body, sent), temperature=0.0, seed=7).complete([])
+
+    assert sent[0]["options"]["temperature"] == config.LLM_TEMPERATURE
+    assert sent[0]["options"]["seed"] == config.LLM_SEED
+    assert sent[1]["options"]["temperature"] == 0.0   # 0.0 is falsy: must not fall back to the default
+    assert sent[1]["options"]["seed"] == 7
+
+
 def test_complete_joins_pieces():
     body = _ndjson({"message": {"content": "18 "}, "done": False}, {"message": {"content": "days"}, "done": True})
     assert OllamaChat(client=_fake_ollama(body, [])).complete([]) == "18 days"
