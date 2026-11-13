@@ -23,7 +23,7 @@
 - [M3 · Hybrid search + rerank](#m3--hybrid-search--rerank) ✅
 - [M4 · Chat](#m4--chat) ✅
 - [M5 · Guardrails](#m5--guardrails) ✅
-- [M6 · Evaluation](#m6--evaluation) ⏳
+- [M6 · Evaluation](#m6--evaluation) ✅
 - [Chat UI (after M5)](#chat-ui-after-m5) ✅
 - [Numbers at a glance](#numbers-at-a-glance)
 
@@ -76,7 +76,7 @@ user message -> rewrite follow-up into standalone question       ✅ M4
   -> LLM answer with [source] citations -> stream to UI          ✅ M4 (SSE + redesigned UI, debug panel ✅)
 
 EVALUATION
-40 questions x 3 seeds -> retrieval hit + LLM judge + consistency ✅ M6 run (human grading pending ⏳)
+40 questions x 3 seeds -> retrieval hit + LLM judge + consistency ✅ M6
 ```
 
 **বাংলায়:** দুইটা আলাদা কাজ। **Indexing** হলো লাইব্রেরি সাজানো: বই এনে, তাকে তাকে রেখে,
@@ -1495,19 +1495,22 @@ questions over several seeds.
 
 ## M6 · Evaluation
 
-⏳ **In progress** (2026-11-13). Built and run; the full study section is written when the human grades are in.
+✅ **Done** (2026-11-13). Human grading was skipped for time (decision recorded in the M6 spec).
 
 - Judge: qwen3.5:4b at temperature 0 (`src/eval/judge.py`), validated on a frozen 14-case sanity set: 14/14.
 - `scripts/run_eval.py`: all 40 questions x seeds 42 / 1 / 2, fresh session per question.
 - Automatic results, every seed: retrieval hit@5 **36/36**, all expected sources 36/36, answers cite a
   retrieved file 36/36, version conflict Q29 (18 not 15) + Q30 (5 not 10) **2/2**.
-- Judge-based correctness is held back until Ragib grades the 40 seed-42 answers (`docs/eval/human_labels.csv`),
-  so the grades aren't anchored. Then: judge-vs-human agreement + kappa, E5c, this section in full.
+- Answer correctness (judge): **90.8%** mean over 3 seeds (90 / 92.5 / 90%), target ≥ 85% met. The rest are
+  PARTIAL (a condition left out: Q12, Q24, Q30 every seed, Q26 in two); **0 INCORRECT in 120 answers**.
+- Q35–Q40 6/6 in every seed. Judge limit seen: on Q26 its reason said complete, its verdict said PARTIAL.
+- Not measured: judge-vs-human agreement (the tooling is built: `run_eval --compare-human`).
 - Lesson already learned: the first smoke run counted an Ollama crash as a wrong answer and a retrieval miss.
   Measurement bugs can move a score as much as model changes.
 
-**বাংলায়:** পরীক্ষা নেওয়া হয়ে গেছে, খাতাও জমা। এখন আমি নিজে ৪০টা খাতা দেখব, তারপর যন্ত্র-পরীক্ষকের
-(judge) নম্বরের সাথে মিলাব। মিললে judge-কে বিশ্বাস করা যাবে, না মিললে আমার নম্বরই চূড়ান্ত।
+**বাংলায়:** পরীক্ষা হয়ে গেছে, যন্ত্র-পরীক্ষক (judge) খাতা দেখেছে: গড়ে ৯১% পুরো নম্বর, বাকিগুলোতে
+একটা শর্ত বাদ পড়েছে, কিন্তু একটাও ভুল নয়। পরীক্ষককে আগে নমুনা খাতা দিয়ে যাচাই করেছিলাম (১৪/১৪),
+তবে আমি নিজে খাতা দেখে মিলিয়ে দেখার সময় পাইনি; এটা সৎভাবে বলতে হবে।
 
 ---
 
@@ -1556,6 +1559,6 @@ language. That avoids matching phrases, which failed in M4/M5 and wouldn't work 
 | M3 | rerank pipeline: MRR 0.935 → 0.986 · all@5 34 → 36/36 · 11.4s/question on CPU · 73 tests |
 | M4 | qwen3.5:4b chat: key facts 8/9 · citations 9/9 · ~1 min/answer on CPU · 104 tests |
 | M5 | leaks 2 → 0 · guardrail cases 12/17 → 15/17 · eval Q35–Q40 5/6 · 123 tests |
-| M6 | Judge sanity 14/14 · retrieval hit@5 36/36 (100%) in all 3 seeds · version conflict 2/2 · answer correctness: pending human grades (target ≥ 85%) · 191 tests |
+| M6 | Retrieval 36/36 (100%) · answers 90.8% CORRECT by judge (≥ 85% met), 0 INCORRECT · Q35–Q40 6/6 · version 2/2 · judge sanity 14/14 · 191 tests |
 
 Full history of every measured score: [experiments.md](experiments.md).

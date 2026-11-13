@@ -4,7 +4,7 @@
 > history do **not** move between machines; everything needed to continue is in this repo.
 > Update the "Current state" and "Next step" sections at the end of every session.
 
-Last updated: 2026-11-13 (M6 built and run, waiting for the human grades; UI redesigned + debug panel + feedback; home laptop)
+Last updated: 2026-11-13 (M6 done, human grading skipped; UI redesign + debug panel + feedback; demo on Sunday 2026-11-15; home laptop)
 
 ---
 
@@ -17,46 +17,42 @@ Last updated: 2026-11-13 (M6 built and run, waiting for the human grades; UI red
 | M3 Hybrid + rerank | ✅ | `ebe4fcc` | BM25 + RRF + bge-reranker: MRR 0.986, all@5 36/36; default rerank, 5 candidates |
 | M4 Chat | ✅ | `d960a4c` | qwen3.5:4b, streaming page, follow-ups: 8/9 key facts, 9/9 citations, ~1 min/answer on CPU |
 | M5 Guardrails | ✅ | `f021e77` | leaks 2 → 0, 15/17 guardrail cases, eval Q35–Q40 5/6 |
-| **M6 Evaluation** | ⏳ **in progress** | not committed yet | judge sanity 14/14; 40 q x 3 seeds run; hit@5 36/36; **waiting for human grades** |
+| M6 Evaluation | ✅ | `44fbf8f` + this commit | retrieval 36/36; answers 90.8% CORRECT by LLM judge (0 wrong); Q35–Q40 6/6; judge sanity 14/14 |
+| Chat UI | ✅ | `26d836e` | redesign to docs/ui-spec.md, SSE, debug panel, thumbs feedback |
 
 Tests: 191 passing (`pytest`), 184 fast (`pytest -m "not integration"`).
 
 Where the details are:
 - [docs/project_notes.md](docs/project_notes.md): study guide per milestone (bilingual), interview Q&A
-- [docs/experiments.md](docs/experiments.md): every measured number (E1–E4)
+- [docs/demo_guide.md](docs/demo_guide.md): demo script, end-to-end flow, numbers, likely interview questions
+- [docs/experiments.md](docs/experiments.md): every measured number (E1–E5)
 - [docs/decisions.md](docs/decisions.md): every choice and why
 - [docs/specs/](docs/specs/): one spec per milestone
 - [PROGRESS.md](PROGRESS.md): session log and open questions
 
 ---
 
-## 2. Next step: M6 Evaluation, finish it
+## 2. Next step: demo on Sunday 2026-11-15
 
-Spec approved (`docs/specs/M6.md`, decisions at the end: human grades all 40, 3 seeds, judge qwen3.5:4b).
-Built: `src/eval/judge.py`, `scripts/judge_sanity.py` (+ frozen `scripts/judge_sanity.json`), `scripts/run_eval.py`.
-Done: judge sanity 14/14 (E5a); full run 40 questions x seeds 42/1/2 (E5b, automatic metrics only).
+All six milestones are done. The user demos the project on **Sunday 2026-11-15** and will then be questioned on how
+it works inside (interview style).
 
-**Waiting on Ragib:** grade the 40 seed-42 answers in **`docs/eval/human_labels.csv`** (`human` column:
-C / P / I, optional `note`). Rubric = the judge's: C all key facts, nothing wrong; P nothing wrong but a key
-fact/behaviour missing; I wrong, invented, different question or wrong behaviour. Ignore citations.
-**Do not open `docs/eval/results/*.json` or the run output before grading:** they contain the judge's
-verdicts and would anchor the grades (one verdict, Q12, was already seen; disclosed in E5b).
-Judge-based numbers are deliberately not in any doc yet.
+- **Prep material:** [docs/demo_guide.md](docs/demo_guide.md) (setup checklist, 10-step demo script, one question
+  end to end, numbers to remember, likely questions, limitations) and [docs/project_notes.md](docs/project_notes.md)
+  (bilingual study guide with Q&A per milestone).
+- **Next session:** offer a **mock interview** (ask one question at a time in Banglish, give feedback on each answer),
+  then a full demo run-through following demo_guide section 1.
+- Optional, if time: write the full M6 study section in project_notes (same structure as M1–M5).
 
-After grading:
-1. `python -m scripts.run_eval --compare-human docs/eval/human_labels.csv docs/eval/results/eval_seed42.json`
-   -> agreement %, CORRECT-vs-not agreement, Cohen's kappa, lenient/strict, every disagreement explained.
-   Judge trusted if exact agreement >= 85%; otherwise the human grades are the official score (and maybe
-   try qwen3.5:9b as judge: 6.1 GB download, ask first).
-2. Show the judge numbers: correct rate per seed, Q35–Q40, consistency (unstable questions).
-3. E5c in experiments.md; then end-of-milestone docs: project_notes M6 (bilingual) + project summary,
-   decisions.md, README status, PROGRESS, this file. Then wait for "commit and push".
+M6 summary (details in experiments.md E5): retrieval 36/36 in 3 seeds; answer correctness by the LLM judge 90.8% mean
+(90 / 92.5 / 90%), 0 INCORRECT in 120 answers, the rest PARTIAL (Q12, Q24, Q30, Q26 drop a condition); Q35–Q40 6/6;
+version conflict 2/2; judge sanity set 14/14. **Human grading was skipped by the user's decision (time)**, so
+judge-vs-human agreement is not measured; the judge contradicted itself on Q26 (reason vs verdict). The grading tools
+still exist: `docs/eval/human_labels.csv` (empty sheet), `run_eval --compare-human`, and a grading page
+(claude.ai artifact, private to the user) whose grades are in its `grades` store.
 
-M6 work is committed (`44fbf8f`). After it, the chat UI was redesigned to `docs/ui-spec.md` (SSE, numbered
-citations, sources panel, themes, phone layout; decisions.md 2026-11-13 UI). Prompts/retrieval unchanged,
-so the eval results stay valid. Then (same day): retrieval debug panel (toggle = the search-mode pill),
-per-answer timing + "Sources searched", working thumbs (`POST /feedback` -> `artifacts/feedback.jsonl`).
-Not built: the scope (metadata) filter.
+Known weak spot to mention when asked about adding documents: superseded status comes from the file name
+(`src/ingest/parse.py`); with more documents it should become metadata (status, version, effective date).
 
 ## 3. Set up a new machine (e.g. the home laptop)
 

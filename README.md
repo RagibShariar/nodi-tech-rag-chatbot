@@ -27,7 +27,7 @@ itself is unchanged).
 | M3 | Hybrid search: BM25 + RRF fusion + bge-reranker (MRR 0.935 → 0.986, all@5 34 → 36 of 36) | ✅ Done |
 | M4 | Chat: qwen3.5:4b, streaming answers with citations, follow-ups (8/9 key facts, 9/9 cited) | ✅ Done |
 | M5 | Guardrails: "I don't know", injection ignored, system prompt protected (0 leaks in 17 attack/scope cases; eval Q35–Q40 5/6) | ✅ Done |
-| M6 | Evaluation: LLM judge (sanity 14/14), 40 questions x 3 seeds, retrieval 36/36; human grading pending | ⏳ |
+| M6 | Evaluation: 40 questions x 3 seeds: retrieval 36/36, answers 90.8% correct (LLM judge, sanity-checked 14/14), 0 wrong, guardrails 6/6 | ✅ Done |
 
 ![Chat page: answer with numbered citations, sources panel with current and superseded documents](docs/images/chat_ui_light.png)
 
@@ -126,6 +126,7 @@ pytest                                        # all tests
 
 - **[CONTEXT.md](CONTEXT.md)**: current state, next step, and how to set up a new machine.
 - **[docs/project_notes.md](docs/project_notes.md)**: start here. How each part works and why.
+- **[docs/demo_guide.md](docs/demo_guide.md)**: demo script, what happens inside one question, numbers, likely questions.
 - [docs/specs/](docs/specs/): the spec each milestone was built against.
 - [docs/ui-spec.md](docs/ui-spec.md): the chat UI spec (screenshots in `docs/design/`).
 - [docs/decisions.md](docs/decisions.md): tool and design choices with reasons.

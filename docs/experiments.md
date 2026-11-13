@@ -239,7 +239,7 @@ Known limitations: Q35 HR suggestion; K3 (Bangla two-price answer) unreliable.
 
 ---
 
-## E5 · 2026-11-13 · M6: evaluation (all 40 questions) — in progress
+## E5 · 2026-11-13 · M6: evaluation (all 40 questions)
 
 Machine: **home laptop**, Intel i5-12500H, 15.7 GB RAM, NVIDIA RTX 3050 Laptop GPU (Ollama runs the models
 on the GPU; the reranker runs on CPU, `torch 2.15.0+cpu`). Timings here are **not comparable** with E1–E4
@@ -291,9 +291,8 @@ Results: `docs/eval/results/eval_seed{42,1,2}.json` (copied from `artifacts/`).
 | Bot crashes / retries | 0 / 0 | 0 / 0 | 0 / 0 | |
 | Avg answer time, home laptop | 6.3s | 11.8s | 9.7s | |
 
-**Judge-based numbers (answer correctness, Q35–Q40) are deliberately not written here yet:** the human
-grades the seed-42 answers first, without seeing the judge's verdicts, so the grades are independent.
-They are added in E5c together with the judge-vs-human comparison.
+Judge-based numbers (answer correctness, Q35–Q40) were held back here so a human could grade first without
+anchoring; the human grading was later skipped, and the judge's numbers are in E5c.
 
 Disclosures:
 - **One verdict was seen before grading:** a progress message during the run mentioned "Q12 PARTIAL".
@@ -303,3 +302,35 @@ Disclosures:
   load (CUDA "shared object initialization failed", HTTP 500) that the first version of the script graded as
   INCORRECT + retrieval miss. Fixed before the full run: warm-up call, one retry per crash (counted and
   reported), crashes are ERROR and never sent to the judge, sources kept even when the answer crashes.
+
+### E5c · answer correctness by the judge (final; human grading skipped)
+
+**Decision (user, 2026-11-13): the human grading of the 40 seed-42 answers was skipped** for time (demo on
+2026-11-15). So the judge's verdicts are reported as they are, validated only by the frozen sanity set (E5a,
+14/14). Judge-vs-human agreement was **not measured**. Disclosed in the M6 spec (decision 1).
+
+| Seed | CORRECT | PARTIAL | INCORRECT | ERROR | Q35–Q40 | Target ≥ 85% |
+|---|---|---|---|---|---|---|
+| 42 | 36/40 = 90.0% | 4 | 0 | 0 | 6/6 | met |
+| 1 | 37/40 = 92.5% | 3 | 0 | 0 | 6/6 | met |
+| 2 | 36/40 = 90.0% | 4 | 0 | 0 | 6/6 | met |
+| **mean** | **90.8%** | | **0 in 120 answers** | | | |
+
+Consistency: 36 questions CORRECT in 3/3 seeds, 1 in 1/3 (Q26), 3 in 0/3 (Q12, Q24, Q30; PARTIAL every time).
+
+The non-CORRECT answers all leave out a condition the expected answer includes; none is wrong or invented:
+- Q12 "14 days" without "no card needed".
+- Q24 "BDT 1,000 per month" without "only for employees approved for remote work".
+- Q30 "5 days, by 31 March" without "the old 10-day rule is superseded" (the version check still passes:
+  it never gives 10).
+- Q26 "25 MB per file" without "raised from 10 MB in release 2.6".
+
+**Judge reliability finding (Q26):** in seeds 42 and 2 the judge's reason says the omission "does not constitute
+a missing key fact", yet its verdict is PARTIAL; in seed 1 a near-identical answer got CORRECT. The reason and the
+verdict disagree, so the judge is not fully consistent on borderline cases, even at temperature 0. With no human
+grades, this is the best available evidence of its limits. If anything the judge leans strict here (none of the
+four would count as wrong).
+
+**All M6 targets met by the judge's numbers:** retrieval 36/36 (≥ 90%), answers 90.8% mean (≥ 85%), Q35–Q40 6/6,
+version conflict 2/2. Caveat: answer correctness rests on an LLM judge that was not checked against human grades.
+

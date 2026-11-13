@@ -1,6 +1,6 @@
 # Progress
 
-## Session 2 · 2026-11-13 · M6 Evaluation (home laptop)
+## Session 2 · 2026-11-13 · M6 Evaluation + chat UI (home laptop)
 
 ### Done
 - Set up the home laptop (Python, Ollama, models, venv, index); all 123 existing tests pass there.
@@ -30,8 +30,10 @@
   evidence links; a caller-owned trace dict for debugging without shared state.
 
 ### Open questions / things to watch
-- **Human grades pending** (`docs/eval/human_labels.csv`); then judge-vs-human comparison and E5c.
-- Self-grading bias untested until that comparison.
+- Human grading **skipped** (user's decision, time before the 2026-11-15 demo): judge-vs-human agreement not
+  measured; self-grading bias untested. The judge contradicted itself on Q26 (reason vs verdict).
+- Final M6 (E5c): answers 90.8% CORRECT by the judge (0 INCORRECT), retrieval 36/36, Q35–Q40 6/6.
+- Demo prep: `docs/demo_guide.md`; next session offers a mock interview.
 - Timings on the laptop vary with heat and other load (6.3s to 11.8s average per answer).
 - "Cited" in the debug panel is per file: the model cites file names, not chunks.
 - Not built yet: the scope (metadata) filter button; feedback is logged but not analysed.
